@@ -1,0 +1,1088 @@
+openapi: 3.0.3
+info:
+  title: ALIMMA API
+  description: >
+    API REST de la marketplace électronique ALIMMA (Cameroun).
+    Couvre l'authentification, le catalogue d'annonces, les commandes,
+    les paiements (Mobile Money / COD), la livraison, la modération
+    et l'administration.
+  version: "1.0.0"
+  contact:
+    name: Équipe technique ALIMMA
+servers:
+  - url: https://api.alimma.cm/v1
+    description: Production
+  - url: https://staging-api.alimma.cm/v1
+    description: Staging
+
+tags:
+  - name: Auth
+  - name: Utilisateurs
+  - name: Annonces
+  - name: Enchères
+  - name: Recherche
+  - name: Panier & Commandes
+  - name: Paiements
+  - name: Livraison
+  - name: Avis & Réputation
+  - name: Social
+  - name: Vendeur Pro
+  - name: Modération
+  - name: Administration
+
+# =====================================================================
+# SÉCURITÉ
+# =====================================================================
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    Erreur:
+      type: object
+      properties:
+        code: { type: string, example: "VALIDATION_ERROR" }
+        message: { type: string, example: "Le champ 'prix' est requis." }
+
+    Utilisateur:
+      type: object
+      properties:
+        id: { type: integer }
+        nom: { type: string }
+        email: { type: string, format: email }
+        telephone: { type: string }
+        role:
+          type: string
+          enum: [utilisateur, vendeur_pro, moderateur, livreur, administrateur]
+        photo_url: { type: string, nullable: true }
+        note_moyenne: { type: number, format: float }
+        code_parrainage: { type: string }
+        date_inscription: { type: string, format: date-time }
+
+    InscriptionRequest:
+      type: object
+      required: [nom, telephone, password]
+      properties:
+        nom: { type: string }
+        email: { type: string, format: email }
+        telephone: { type: string, example: "+237670000000" }
+        password: { type: string, format: password, minLength: 8 }
+        code_parrainage_utilise: { type: string, nullable: true }
+
+    LoginRequest:
+      type: object
+      required: [identifiant, password]
+      properties:
+        identifiant: { type: string, description: "Email ou téléphone" }
+        password: { type: string, format: password }
+
+    LoginResponse:
+      type: object
+      properties:
+        otp_requis: { type: boolean }
+        message: { type: string, example: "Code OTP envoyé par SMS" }
+        session_token: { type: string, description: "Jeton temporaire pour l'étape verify-otp" }
+
+    VerifyOtpRequest:
+      type: object
+      required: [session_token, code]
+      properties:
+        session_token: { type: string }
+        code: { type: string, example: "482913" }
+
+    TokenResponse:
+      type: object
+      properties:
+        access_token: { type: string }
+        refresh_token: { type: string }
+        utilisateur: { $ref: '#/components/schemas/Utilisateur' }
+
+    Annonce:
+      type: object
+      properties:
+        id: { type: integer }
+        vendeur_id: { type: integer }
+        categorie_id: { type: integer }
+        titre: { type: string }
+        description: { type: string }
+        prix: { type: number, format: float }
+        type_vente: { type: string, enum: [fixe, enchere] }
+        etat: { type: string, enum: [neuf, occasion] }
+        ville: { type: string }
+        quartier: { type: string, nullable: true }
+        latitude: { type: number, format: float, nullable: true }
+        longitude: { type: number, format: float, nullable: true }
+        statut:
+          type: string
+          enum: [en_attente_moderation, active, en_pause, rejetee, vendue, expiree]
+        images:
+          type: array
+          items: { type: string }
+        nb_vues: { type: integer }
+        date_publication: { type: string, format: date-time, nullable: true }
+
+    AnnonceCreateRequest:
+      type: object
+      required: [titre, description, prix, categorie_id, ville, etat, type_vente]
+      properties:
+        titre: { type: string, maxLength: 200 }
+        description: { type: string }
+        prix: { type: number }
+        categorie_id: { type: integer }
+        ville: { type: string }
+        quartier: { type: string }
+        latitude: { type: number }
+        longitude: { type: number }
+        etat: { type: string, enum: [neuf, occasion] }
+        type_vente: { type: string, enum: [fixe, enchere] }
+        enchere:
+          type: object
+          nullable: true
+          properties:
+            prix_depart: { type: number }
+            pas_enchere: { type: number }
+            date_limite: { type: string, format: date-time }
+        images:
+          type: array
+          items: { type: string, format: binary }
+
+    Commande:
+      type: object
+      properties:
+        id: { type: integer }
+        acheteur_id: { type: integer }
+        annonce_id: { type: integer }
+        vendeur_id: { type: integer }
+        montant_total: { type: number }
+        mode_paiement: { type: string, enum: [mobile_money, cod] }
+        statut:
+          type: string
+          enum: [attente_paiement, confirmee, payee, preparee, en_transit, livree, annulee, litige]
+        adresse_livraison: { type: string }
+        created_at: { type: string, format: date-time }
+
+    CommandeCreateRequest:
+      type: object
+      required: [annonce_id, mode_paiement, adresse_livraison, ville_livraison]
+      properties:
+        annonce_id: { type: integer }
+        quantite: { type: integer, default: 1 }
+        mode_paiement: { type: string, enum: [mobile_money, cod] }
+        operateur: { type: string, enum: [mtn, orange], nullable: true }
+        adresse_livraison: { type: string }
+        ville_livraison: { type: string }
+        code_promo: { type: string, nullable: true }
+
+    Avis:
+      type: object
+      properties:
+        id: { type: integer }
+        commande_id: { type: integer }
+        auteur_id: { type: integer }
+        vendeur_id: { type: integer }
+        note: { type: integer, minimum: 1, maximum: 5 }
+        commentaire: { type: string, nullable: true }
+        created_at: { type: string, format: date-time }
+
+    Pagination:
+      type: object
+      properties:
+        page: { type: integer }
+        par_page: { type: integer }
+        total: { type: integer }
+        total_pages: { type: integer }
+
+  parameters:
+    PageParam:
+      name: page
+      in: query
+      schema: { type: integer, default: 1 }
+    ParPageParam:
+      name: par_page
+      in: query
+      schema: { type: integer, default: 20, maximum: 100 }
+
+  responses:
+    Unauthorized:
+      description: Authentification requise ou invalide
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Erreur' }
+    Forbidden:
+      description: Rôle insuffisant pour cette action
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Erreur' }
+    NotFound:
+      description: Ressource introuvable
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Erreur' }
+    ValidationError:
+      description: Erreur de validation des données
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Erreur' }
+
+security:
+  - bearerAuth: []
+
+# =====================================================================
+# ROUTES
+# =====================================================================
+paths:
+
+  # ---------------------------------------------------------------- AUTH
+  /auth/inscription:
+    post:
+      tags: [Auth]
+      summary: Créer un compte utilisateur
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/InscriptionRequest' }
+      responses:
+        '201':
+          description: Compte créé
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Utilisateur' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Connexion (étape 1) — déclenche l'envoi du code OTP si 2FA activée
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LoginRequest' }
+      responses:
+        '200':
+          description: OTP envoyé, ou connexion directe si 2FA désactivée
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LoginResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /auth/verify-otp:
+    post:
+      tags: [Auth]
+      summary: Connexion (étape 2) — validation du code OTP, émission du JWT
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/VerifyOtpRequest' }
+      responses:
+        '200':
+          description: Authentification réussie
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TokenResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /auth/refresh:
+    post:
+      tags: [Auth]
+      summary: Rafraîchir le token d'accès
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties: { refresh_token: { type: string } }
+      responses:
+        '200':
+          description: Nouveau token
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TokenResponse' }
+
+  /auth/logout:
+    post:
+      tags: [Auth]
+      summary: Déconnexion (invalidation du refresh token)
+      responses:
+        '204': { description: Déconnecté }
+
+  # ---------------------------------------------------------- UTILISATEURS
+  /utilisateurs/moi:
+    get:
+      tags: [Utilisateurs]
+      summary: Récupérer le profil de l'utilisateur connecté
+      responses:
+        '200':
+          description: Profil utilisateur
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Utilisateur' }
+    patch:
+      tags: [Utilisateurs]
+      summary: Modifier son profil
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                nom: { type: string }
+                email: { type: string }
+                photo_url: { type: string }
+      responses:
+        '200':
+          description: Profil mis à jour
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Utilisateur' }
+
+  /utilisateurs/moi/mot-de-passe:
+    put:
+      tags: [Utilisateurs]
+      summary: Changer le mot de passe
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ancien_mot_de_passe, nouveau_mot_de_passe]
+              properties:
+                ancien_mot_de_passe: { type: string }
+                nouveau_mot_de_passe: { type: string }
+      responses:
+        '204': { description: Mot de passe modifié }
+
+  /utilisateurs/{id}:
+    get:
+      tags: [Utilisateurs]
+      summary: Profil public d'un utilisateur / vendeur (note, badges, boutique)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: Profil public
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Utilisateur' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  # ------------------------------------------------------------- ANNONCES
+  /annonces:
+    get:
+      tags: [Annonces]
+      summary: Lister / rechercher les annonces
+      security: []
+      parameters:
+        - { $ref: '#/components/parameters/PageParam' }
+        - { $ref: '#/components/parameters/ParPageParam' }
+        - name: q
+          in: query
+          schema: { type: string }
+          description: Mots-clés (titre / description)
+        - name: categorie_id
+          in: query
+          schema: { type: integer }
+        - name: ville
+          in: query
+          schema: { type: string }
+        - name: prix_min
+          in: query
+          schema: { type: number }
+        - name: prix_max
+          in: query
+          schema: { type: number }
+        - name: etat
+          in: query
+          schema: { type: string, enum: [neuf, occasion] }
+        - name: type_vente
+          in: query
+          schema: { type: string, enum: [fixe, enchere] }
+      responses:
+        '200':
+          description: Liste paginée d'annonces
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/Annonce' }
+                  pagination: { $ref: '#/components/schemas/Pagination' }
+    post:
+      tags: [Annonces]
+      summary: Publier une nouvelle annonce (statut initial "en_attente_moderation")
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema: { $ref: '#/components/schemas/AnnonceCreateRequest' }
+      responses:
+        '201':
+          description: Annonce créée
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Annonce' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+
+  /annonces/carte:
+    get:
+      tags: [Recherche]
+      summary: Recherche géographique des annonces (pour affichage carte)
+      security: []
+      parameters:
+        - name: lat
+          in: query
+          required: true
+          schema: { type: number }
+        - name: lng
+          in: query
+          required: true
+          schema: { type: number }
+        - name: rayon_km
+          in: query
+          schema: { type: number, default: 10 }
+      responses:
+        '200':
+          description: Annonces géolocalisées dans le rayon donné
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Annonce' }
+
+  /annonces/{id}:
+    get:
+      tags: [Annonces]
+      summary: Détail d'une annonce (incrémente nb_vues)
+      security: []
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        '200':
+          description: Détail de l'annonce
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Annonce' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      tags: [Annonces]
+      summary: Modifier une annonce (auteur uniquement)
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AnnonceCreateRequest' }
+      responses:
+        '200':
+          description: Annonce mise à jour
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Annonce' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    delete:
+      tags: [Annonces]
+      summary: Supprimer une annonce
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        '204': { description: Supprimée }
+
+  /annonces/{id}/pause:
+    post:
+      tags: [Annonces]
+      summary: Mettre une annonce en pause / la republier
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        '200': { description: Statut modifié }
+
+  /annonces/{id}/commentaires:
+    get:
+      tags: [Social]
+      summary: Lister les commentaires publics d'une annonce
+      security: []
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        '200': { description: Liste des commentaires }
+    post:
+      tags: [Social]
+      summary: Poster un commentaire public / une question sous une annonce
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [contenu]
+              properties: { contenu: { type: string } }
+      responses:
+        '201': { description: Commentaire créé }
+
+  # -------------------------------------------------------------- ENCHÈRES
+  /annonces/{id}/encheres/offres:
+    post:
+      tags: [Enchères]
+      summary: Placer une offre sur une enchère en cours
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [montant]
+              properties: { montant: { type: number } }
+      responses:
+        '201': { description: Offre enregistrée }
+        '409': { description: "Montant inférieur au minimum requis (prix actuel + pas d'enchère)" }
+    get:
+      tags: [Enchères]
+      summary: Historique des offres d'une enchère
+      security: []
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        '200': { description: "Liste des offres, triées par montant décroissant" }
+
+  # ------------------------------------------------------ PANIER & COMMANDES
+  /commandes:
+    get:
+      tags: [Panier & Commandes]
+      summary: Lister mes commandes (achats ou ventes selon le rôle)
+      parameters:
+        - { $ref: '#/components/parameters/PageParam' }
+        - name: role
+          in: query
+          schema: { type: string, enum: [acheteur, vendeur] }
+        - name: statut
+          in: query
+          schema: { type: string }
+      responses:
+        '200':
+          description: Liste de commandes
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Commande' }
+    post:
+      tags: [Panier & Commandes]
+      summary: Passer une commande (choix du mode de paiement)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CommandeCreateRequest' }
+      responses:
+        '201':
+          description: Commande créée
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Commande' }
+
+  /commandes/{id}:
+    get:
+      tags: [Panier & Commandes]
+      summary: Détail d'une commande (suivi de statut)
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        '200':
+          description: Détail de la commande
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Commande' }
+
+  /commandes/{id}/annuler:
+    post:
+      tags: [Panier & Commandes]
+      summary: Annuler une commande (si statut le permet)
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        '200': { description: Commande annulée }
+
+  # -------------------------------------------------------------- PAIEMENTS
+  /paiements/mobile-money/initier:
+    post:
+      tags: [Paiements]
+      summary: Initier un paiement Mobile Money (MTN/Orange) pour une commande
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [commande_id, operateur, numero_payeur]
+              properties:
+                commande_id: { type: integer }
+                operateur: { type: string, enum: [mtn, orange] }
+                numero_payeur: { type: string }
+      responses:
+        '202': { description: "Demande envoyée à l'opérateur, en attente de validation OTP côté utilisateur" }
+
+  /paiements/mobile-money/callback:
+    post:
+      tags: [Paiements]
+      summary: Webhook de confirmation appelé par l'API MTN/Orange
+      security: []
+      requestBody:
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        '200': { description: Callback traité }
+
+  /paiements/{id}/confirmer-especes:
+    post:
+      tags: [Paiements]
+      summary: Confirmer la réception du paiement en espèces (rôle Livreur)
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        '200': { description: Paiement COD confirmé }
+
+  # -------------------------------------------------------------- LIVRAISON
+  /livreur/colis:
+    get:
+      tags: [Livraison]
+      summary: Liste des colis assignés au livreur connecté
+      parameters:
+        - name: statut
+          in: query
+          schema: { type: string, enum: [preparee, en_transit, livree] }
+      responses:
+        '200': { description: Liste des livraisons }
+
+  /livreur/colis/{id}/scan:
+    post:
+      tags: [Livraison]
+      summary: Scanner le QR code d'un colis pour faire progresser son statut
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties: { qr_code: { type: string } }
+      responses:
+        '200': { description: Statut de livraison mis à jour }
+
+  /livreur/colis/{id}/statut:
+    patch:
+      tags: [Livraison]
+      summary: Mettre à jour manuellement le statut d'un colis
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                statut: { type: string, enum: [preparee, en_transit, livree, echec] }
+      responses:
+        '200': { description: Statut mis à jour }
+
+  # ------------------------------------------------------ AVIS & RÉPUTATION
+  /avis:
+    post:
+      tags: [Avis & Réputation]
+      summary: Laisser un avis sur un vendeur après une commande livrée
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [commande_id, note]
+              properties:
+                commande_id: { type: integer }
+                note: { type: integer, minimum: 1, maximum: 5 }
+                commentaire: { type: string }
+      responses:
+        '201':
+          description: Avis enregistré
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Avis' }
+
+  /utilisateurs/{id}/avis:
+    get:
+      tags: [Avis & Réputation]
+      summary: Lister les avis reçus par un vendeur
+      security: []
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        '200':
+          description: Liste d'avis
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Avis' }
+
+  # ------------------------------------------------------------------ SOCIAL
+  /follows/{vendeur_id}:
+    post:
+      tags: [Social]
+      summary: Suivre un vendeur
+      parameters:
+        - { name: vendeur_id, in: path, required: true, schema: { type: integer } }
+      responses:
+        '204': { description: Abonnement créé }
+    delete:
+      tags: [Social]
+      summary: Ne plus suivre un vendeur
+      parameters:
+        - { name: vendeur_id, in: path, required: true, schema: { type: integer } }
+      responses:
+        '204': { description: Abonnement supprimé }
+
+  /favoris:
+    get:
+      tags: [Social]
+      summary: Lister mes annonces favorites
+      responses:
+        '200': { description: Liste de favoris }
+    post:
+      tags: [Social]
+      summary: Ajouter une annonce aux favoris
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties: { annonce_id: { type: integer } }
+      responses:
+        '204': { description: Ajouté aux favoris }
+
+  /favoris/{annonce_id}:
+    delete:
+      tags: [Social]
+      summary: Retirer une annonce des favoris
+      parameters:
+        - { name: annonce_id, in: path, required: true, schema: { type: integer } }
+      responses:
+        '204': { description: Retiré des favoris }
+
+  /alertes:
+    get:
+      tags: [Social]
+      summary: Lister mes alertes de recherche
+      responses:
+        '200': { description: Liste des alertes }
+    post:
+      tags: [Social]
+      summary: Créer une alerte personnalisée (mots-clés / ville / catégorie)
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                mots_cles: { type: string }
+                categorie_id: { type: integer }
+                ville: { type: string }
+      responses:
+        '201': { description: Alerte créée }
+
+  /parrainage/mon-code:
+    get:
+      tags: [Social]
+      summary: Récupérer mon code de parrainage et mes points cumulés
+      responses:
+        '200': { description: Code + statistiques de parrainage }
+
+  # -------------------------------------------------------------- VENDEUR PRO
+  /vendeur/boutique:
+    patch:
+      tags: [Vendeur Pro]
+      summary: Personnaliser sa boutique (logo, bannière, description)
+      responses:
+        '200': { description: Boutique mise à jour }
+
+  /vendeur/annonces/import:
+    post:
+      tags: [Vendeur Pro]
+      summary: Importer un lot d'annonces via fichier CSV/Excel (max 500 lignes)
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                fichier: { type: string, format: binary }
+      responses:
+        '202': { description: "Import en cours de traitement (traitement asynchrone)" }
+
+  /vendeur/commandes/export:
+    get:
+      tags: [Vendeur Pro]
+      summary: Exporter les commandes de la boutique (CSV) pour la comptabilité
+      parameters:
+        - name: date_debut
+          in: query
+          schema: { type: string, format: date }
+        - name: date_fin
+          in: query
+          schema: { type: string, format: date }
+      responses:
+        '200':
+          description: Fichier CSV
+          content:
+            text/csv:
+              schema: { type: string }
+
+  /vendeur/statistiques:
+    get:
+      tags: [Vendeur Pro]
+      summary: Statistiques avancées (ventes, CA, taux de conversion, provenance)
+      parameters:
+        - name: periode
+          in: query
+          schema: { type: string, enum: [7j, 30j, 12m] }
+      responses:
+        '200': { description: Statistiques agrégées }
+
+  /vendeur/promotions:
+    get:
+      tags: [Vendeur Pro]
+      summary: Lister mes codes promo boutique
+      responses:
+        '200': { description: Liste des codes promo }
+    post:
+      tags: [Vendeur Pro]
+      summary: Créer un code promo boutique
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                code: { type: string }
+                reduction_pct: { type: number }
+                date_debut: { type: string, format: date }
+                date_fin: { type: string, format: date }
+      responses:
+        '201': { description: Code promo créé }
+
+  # -------------------------------------------------------------- MODÉRATION
+  /moderation/annonces:
+    get:
+      tags: [Modération]
+      summary: Lister les annonces en attente de modération
+      responses:
+        '200': { description: File d'attente de modération }
+
+  /moderation/annonces/{id}/decision:
+    post:
+      tags: [Modération]
+      summary: Valider ou rejeter une annonce
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [decision]
+              properties:
+                decision: { type: string, enum: [valider, rejeter] }
+                motif: { type: string }
+      responses:
+        '200': { description: Décision appliquée }
+
+  /moderation/signalements:
+    get:
+      tags: [Modération]
+      summary: Lister les signalements (annonces, utilisateurs, commentaires)
+      parameters:
+        - name: statut
+          in: query
+          schema: { type: string }
+        - name: type
+          in: query
+          schema: { type: string, enum: [annonce, utilisateur, commentaire] }
+      responses:
+        '200': { description: Liste des signalements }
+
+  /moderation/signalements/{id}/traiter:
+    post:
+      tags: [Modération]
+      summary: Traiter un signalement
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                statut: { type: string, enum: [traite, rejete] }
+                action: { type: string, description: "ex: suspension_utilisateur, suppression_annonce" }
+      responses:
+        '200': { description: Signalement traité }
+
+  /moderation/commentaires/{id}:
+    delete:
+      tags: [Modération]
+      summary: Masquer / supprimer un commentaire inapproprié
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        '204': { description: Commentaire masqué }
+
+  # ----------------------------------------------------------- ADMINISTRATION
+  /admin/utilisateurs:
+    get:
+      tags: [Administration]
+      summary: Lister / rechercher les utilisateurs
+      parameters:
+        - { $ref: '#/components/parameters/PageParam' }
+        - name: role
+          in: query
+          schema: { type: string }
+        - name: q
+          in: query
+          schema: { type: string }
+      responses:
+        '200': { description: Liste des utilisateurs }
+
+  /admin/utilisateurs/{id}/role:
+    patch:
+      tags: [Administration]
+      summary: Modifier le rôle d'un utilisateur (Premium, Modérateur, Livreur…)
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                role: { type: string, enum: [utilisateur, vendeur_pro, moderateur, livreur, administrateur] }
+      responses:
+        '200': { description: Rôle mis à jour }
+
+  /admin/utilisateurs/{id}/suspendre:
+    post:
+      tags: [Administration]
+      summary: Suspendre ou réactiver un compte utilisateur
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        '200': { description: Statut du compte modifié }
+
+  /admin/categories:
+    get:
+      tags: [Administration]
+      summary: Lister les catégories et sous-catégories
+      security: []
+      responses:
+        '200': { description: Arborescence des catégories }
+    post:
+      tags: [Administration]
+      summary: Créer une catégorie ou sous-catégorie
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                nom: { type: string }
+                parent_id: { type: integer, nullable: true }
+      responses:
+        '201': { description: Catégorie créée }
+
+  /admin/categories/{id}:
+    patch:
+      tags: [Administration]
+      summary: Modifier une catégorie
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        '200': { description: Catégorie modifiée }
+    delete:
+      tags: [Administration]
+      summary: Supprimer une catégorie
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        '204': { description: Catégorie supprimée }
+
+  /admin/promotions:
+    post:
+      tags: [Administration]
+      summary: Créer un code promo global (applicable sur tout le site)
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                code: { type: string }
+                reduction_pct: { type: number }
+                date_debut: { type: string, format: date }
+                date_fin: { type: string, format: date }
+      responses:
+        '201': { description: Promotion globale créée }
+
+  /admin/statistiques:
+    get:
+      tags: [Administration]
+      summary: Statistiques globales de la plateforme
+      responses:
+        '200':
+          description: KPIs globaux
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  nb_utilisateurs: { type: integer }
+                  nb_annonces_actives: { type: integer }
+                  nb_commandes: { type: integer }
+                  chiffre_affaires_total: { type: number }
+
+  /admin/parametres:
+    get:
+      tags: [Administration]
+      summary: Consulter les paramètres globaux du site
+      responses:
+        '200': { description: "Paramètres (frais de livraison par défaut, CGU, mentions légales…)" }
+    patch:
+      tags: [Administration]
+      summary: Modifier les paramètres globaux du site
+      requestBody:
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        '200': { description: Paramètres mis à jour }
+
+  /admin/moderateurs/{id}/journal:
+    get:
+      tags: [Administration]
+      summary: Consulter le journal d'actions d'un modérateur (supervision)
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        '200': { description: Historique des actions de modération }
