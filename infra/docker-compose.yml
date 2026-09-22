@@ -1,12 +1,12 @@
 services:
   postgres:
-    image: postgres:16-alpine
+    image: postgis/postgis:16-3.5-alpine
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-alimma}
       POSTGRES_USER: ${POSTGRES_USER:-alimma}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-alimma}
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      - "${POSTGRES_PORT:-5433}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
