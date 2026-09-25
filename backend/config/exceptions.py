@@ -18,7 +18,12 @@ def api_exception_handler(exc, context):
         return response
 
     detail = response.data.get("detail", response.data)
-    default_code = "VALIDATION_ERROR" if response.status_code == 400 else "API_ERROR"
-    code = getattr(exc, "default_code", default_code).upper()
+    if response.status_code == 400:
+        # Le contrat ALIMMA expose les erreurs de validation en 422.
+        response.status_code = 422
+    default_code = "VALIDATION_ERROR" if response.status_code == 422 else "API_ERROR"
+    code = default_code if response.status_code == 422 else getattr(
+        exc, "default_code", default_code
+    ).upper()
     response.data = {"code": code, "message": _first_message(detail)}
     return response
