@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 @theme {
-  /* Enregistrement de la couleur primaire pour Tailwind v4 */
+  /* Ici j'enregistrement de la couleur primaire pour Tailwind v4 */
   --color-primary: #f05a22;
   --color-primary-dark: #d94a15;
   --color-primary-light: #ff7a45;
