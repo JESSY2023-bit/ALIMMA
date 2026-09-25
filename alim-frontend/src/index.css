@@ -1,0 +1,85 @@
+@import "tailwindcss";
+
+@theme {
+  /* Enregistrement de la couleur primaire pour Tailwind v4 */
+  --color-primary: #f05a22;
+  --color-primary-dark: #d94a15;
+  --color-primary-light: #ff7a45;
+  --color-primary-50: #fff3ee;
+
+  /* Couleurs secondaires et neutres */
+  --color-secondary: #1a1a1a;
+  --color-secondary-light: #555555;
+  --color-bg-soft: #f5f6f8;
+  --color-border-soft: #e5e7eb;
+  --color-placeholder: #9ca3af;
+
+  /* Polices */
+  --font-sans: "Inter", system-ui, sans-serif;
+  --font-display: "Poppins", "Inter", sans-serif;
+}
+
+/* Base global */
+@layer base {
+  body {
+    font-family: var(--font-sans);
+    color: var(--color-secondary);
+    background-color: #ffffff;
+  }
+}
+
+/* Classes utilitaires réutilisables */
+@layer components {
+  /* Arrière-plans principaux */
+  .bg-primary {
+    background-color: #f05a22 !important;
+  }
+  .bg-primary-hover:hover {
+    background-color: #d94a15 !important;
+  }
+  .bg-primary-soft {
+    background-color: #fff3ee !important;
+  }
+
+  /* Couleurs de texte */
+  .text-primary {
+    color: #f05a22 !important;
+  }
+  .text-primary-hover:hover {
+    color: #f05a22 !important;
+  }
+
+  /* Bordures */
+  .border-primary {
+    border-color: #f05a22 !important;
+  }
+
+  /* Bouton d'action principal */
+  .btn-primary {
+    background-color: #f05a22;
+    color: #ffffff;
+    font-weight: 700;
+    text-transform: uppercase;
+    padding: 0.75rem 2rem;
+    border-radius: 0.5rem;
+    transition: background-color 0.2s ease;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .btn-primary:hover {
+    background-color: #d94a15;
+  }
+
+  /* Badge compteur (Panier) */
+  .badge-primary {
+    background-color: #f05a22;
+    color: #ffffff;
+    font-weight: 700;
+    border-radius: 9999px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+}
