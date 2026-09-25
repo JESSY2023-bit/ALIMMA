@@ -35,6 +35,34 @@ class ErreurSerializer(serializers.Serializer):
     message = serializers.CharField()
 
 
+class LoginSerializer(serializers.Serializer):
+    """Valide les identifiants attendus par l'endpoint de connexion."""
+
+    identifiant = serializers.CharField()
+    password = serializers.CharField(write_only=True, trim_whitespace=False)
+
+
+class RefreshRequestSerializer(serializers.Serializer):
+    """Valide le refresh token transmis par le client."""
+
+    refresh_token = serializers.CharField()
+
+
+class LogoutSerializer(RefreshRequestSerializer):
+    """Le logout nécessite le même refresh token que son invalidation."""
+
+
+class LoginResponseSerializer(serializers.Serializer):
+    """Documente les réponses de connexion avec ou sans authentification 2FA."""
+
+    otp_requis = serializers.BooleanField()
+    message = serializers.CharField(required=False)
+    session_token = serializers.CharField(required=False)
+    access_token = serializers.CharField(required=False)
+    refresh_token = serializers.CharField(required=False)
+    utilisateur = UtilisateurSerializer(required=False)
+
+
 class InscriptionSerializer(serializers.Serializer):
     """Valide et crée une inscription depuis ``InscriptionRequest``."""
 
