@@ -1,4 +1,5 @@
 """Format d'erreur public défini par le contrat OpenAPI."""
+from rest_framework.exceptions import AuthenticationFailed
 from rest_framework.views import exception_handler as drf_exception_handler
 
 
@@ -17,6 +18,10 @@ def api_exception_handler(exc, context):
     if response is None:
         return response
 
+    # DRF transforme AuthenticationFailed en 403 lorsque la vue est publique.
+    # Le contrat ALIMMA impose néanmoins 401 pour des identifiants ou tokens invalides.
+    if isinstance(exc, AuthenticationFailed):
+        response.status_code = 401
     detail = response.data.get("detail", response.data)
     if response.status_code == 400:
         # Le contrat ALIMMA expose les erreurs de validation en 422.
