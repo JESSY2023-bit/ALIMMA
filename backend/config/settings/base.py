@@ -25,6 +25,7 @@ INSTALLED_APPS = [
     "corsheaders",
     "rest_framework",
     "rest_framework_simplejwt.token_blacklist",
+    "drf_spectacular",
     "apps.accounts",
     "apps.catalogue",
     "apps.commandes",
@@ -89,6 +90,51 @@ REST_FRAMEWORK = {
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
     "PAGE_SIZE": 20,
     "EXCEPTION_HANDLER": "config.exceptions.api_exception_handler",
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+}
+
+SPECTACULAR_SETTINGS = {
+    "TITLE": "ALIMMA API",
+    "DESCRIPTION": (
+        "API REST de la marketplace électronique ALIMMA (Cameroun).\n"
+        "Couvre l'authentification, le catalogue d'annonces, les commandes, "
+        "les paiements (Mobile Money / COD), la livraison, la modération "
+        "et l'administration."
+    ),
+    "VERSION": "1.0.0",
+    "SERVE_INCLUDE_SCHEMA": False,
+    "SERVE_PERMISSIONS": ["rest_framework.permissions.AllowAny"],
+    "SERVE_AUTHENTICATION": [],
+    "SERVERS": [
+        {"url": "https://api.alimma.cm/v1", "description": "Production"},
+        {"url": "https://staging-api.alimma.cm/v1", "description": "Staging"},
+    ],
+    "TAGS": [
+        {"name": "Auth"},
+        {"name": "Utilisateurs"},
+        {"name": "Annonces"},
+        {"name": "Enchères"},
+        {"name": "Recherche"},
+        {"name": "Panier & Commandes"},
+        {"name": "Paiements"},
+        {"name": "Livraison"},
+        {"name": "Avis & Réputation"},
+        {"name": "Social"},
+        {"name": "Vendeur Pro"},
+        {"name": "Modération"},
+        {"name": "Administration"},
+    ],
+    "APPEND_COMPONENTS": {
+        "securitySchemes": {
+            "bearerAuth": {
+                "type": "http",
+                "scheme": "bearer",
+                "bearerFormat": "JWT",
+            }
+        }
+    },
+    "SECURITY": [{"bearerAuth": []}],
+    "SWAGGER_UI_SETTINGS": {"persistAuthorization": True},
 }
 
 CACHES = {
