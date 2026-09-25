@@ -81,10 +81,14 @@ components:
 
     LoginResponse:
       type: object
+      required: [otp_requis]
       properties:
         otp_requis: { type: boolean }
         message: { type: string, example: "Code OTP envoyé par SMS" }
         session_token: { type: string, description: "Jeton temporaire pour l'étape verify-otp" }
+        access_token: { type: string }
+        refresh_token: { type: string }
+        utilisateur: { $ref: '#/components/schemas/Utilisateur' }
 
     VerifyOtpRequest:
       type: object
@@ -92,13 +96,6 @@ components:
       properties:
         session_token: { type: string }
         code: { type: string, example: "482913" }
-
-    TokenResponse:
-      type: object
-      properties:
-        access_token: { type: string }
-        refresh_token: { type: string }
-        utilisateur: { $ref: '#/components/schemas/Utilisateur' }
 
     Annonce:
       type: object
@@ -287,7 +284,7 @@ paths:
           description: Authentification réussie
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/TokenResponse' }
+              schema: { $ref: '#/components/schemas/LoginResponse' }
         '401': { $ref: '#/components/responses/Unauthorized' }
 
   /auth/refresh:
@@ -301,18 +298,27 @@ paths:
           application/json:
             schema:
               type: object
+              required: [refresh_token]
               properties: { refresh_token: { type: string } }
       responses:
         '200':
           description: Nouveau token
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/TokenResponse' }
+              schema: { $ref: '#/components/schemas/LoginResponse' }
 
   /auth/logout:
     post:
       tags: [Auth]
       summary: Déconnexion (invalidation du refresh token)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refresh_token]
+              properties: { refresh_token: { type: string } }
       responses:
         '204': { description: Déconnecté }
 
