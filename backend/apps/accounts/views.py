@@ -51,7 +51,11 @@ class InscriptionView(APIView):
 
 def token_response(utilisateur, refresh_token=None):
     """Émet des JWT contenant les claims métier exigés par le contrat ALIMMA."""
+    # Lors d'un rafraîchissement, le même refresh est conservé : seul l'access
+    # token est régénéré tant que le jeton présenté reste valide.
     refresh = refresh_token or RefreshToken.for_user(utilisateur)
+    # Ces claims évitent au client de devoir décoder des informations métier
+    # absentes du payload standard de Simple JWT.
     for claim, value in {
         "id": utilisateur.id,
         "role": utilisateur.role,
@@ -70,6 +74,8 @@ def token_response(utilisateur, refresh_token=None):
 def active_user_from_refresh(refresh_token):
     """Valide un refresh token et retourne uniquement son propriétaire actif."""
     try:
+        # Le constructeur contrôle signature, expiration et blacklist avant
+        # toute lecture du claim ``user_id``.
         refresh = RefreshToken(refresh_token)
         utilisateur = Utilisateur.objects.get(
             id=refresh["user_id"],
@@ -112,6 +118,8 @@ class LoginView(APIView):
             or not utilisateur.est_actif
             or not utilisateur.check_password(serializer.validated_data["password"])
         ):
+            # Le message reste volontairement générique pour ne pas révéler
+            # l'existence d'un compte ni l'origine exacte de l'échec.
             LoginAttemptLimiter.register_failure(identifier)
             raise AuthenticationFailed(INVALID_CREDENTIALS_MESSAGE)
 
@@ -119,6 +127,7 @@ class LoginView(APIView):
         utilisateur.derniere_connexion = timezone.now()
         utilisateur.save(update_fields=["derniere_connexion", "updated_at"])
         if settings.FEATURE_2FA_ENABLED and utilisateur.deux_fa_active:
+            # La branche est prête pour l'OTP mais reste inactive pour le MVP.
             session_token = signing.TimestampSigner().sign(str(utilisateur.id))
             return Response(
                 {
@@ -153,6 +162,8 @@ class RefreshView(APIView):
         refresh, utilisateur = active_user_from_refresh(
             serializer.validated_data["refresh_token"]
         )
+        # Cette vue publique autorise le jeton de n'importe quel utilisateur :
+        # sa signature et son propriétaire actif constituent l'autorisation.
         return Response(token_response(utilisateur, refresh))
 
 
@@ -174,6 +185,8 @@ class LogoutView(APIView):
             serializer.validated_data["refresh_token"]
         )
         if utilisateur.id != request.user.id:
+            # Un access token ne peut révoquer que les refresh tokens de son
+            # propre titulaire.
             raise PermissionDenied("Ce refresh token n'appartient pas à cet utilisateur.")
         refresh.blacklist()
         return Response(status=status.HTTP_204_NO_CONTENT)

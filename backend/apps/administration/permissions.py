@@ -8,5 +8,6 @@ class IsAdministrator(BasePermission):
     message = "Cette action requiert le rôle administrateur."
 
     def has_permission(self, request, view):
+        """Accepte uniquement un JWT authentifié du rôle administrateur."""
         return bool(request.user and request.user.is_authenticated) and getattr(
             request.user, "role", None) == "administrateur"

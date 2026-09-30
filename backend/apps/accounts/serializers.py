@@ -6,6 +6,7 @@ from rest_framework import serializers
 
 from .models import Parrainage, Utilisateur
 
+# Le format E.164 camerounais contient l'indicatif +237 suivi de neuf chiffres.
 CAMEROON_PHONE_PATTERN = re.compile(r"^\+237\d{9}$")
 
 
@@ -101,12 +102,16 @@ class InscriptionSerializer(serializers.Serializer):
     def create(self, validated_data):
         """Crée le compte et applique un parrainage valide, sans bloquer sinon."""
         code_utilise = validated_data.pop("code_parrainage_utilise", "")
+        # La transaction garantit qu'un filleul ne peut pas être créé sans son
+        # lien de parrainage lorsque le code fourni est valide.
         with transaction.atomic():
             utilisateur = Utilisateur.objects.create_user(**validated_data)
             parrain = Utilisateur.objects.filter(
                 code_parrainage=(code_utilise or "").strip().upper()
             ).first()
             if parrain:
+                # Un code absent ou inconnu est volontairement ignoré, selon le
+                # comportement attendu à l'inscription.
                 utilisateur.parraine_par = parrain
                 utilisateur.save(update_fields=["parraine_par", "updated_at"])
                 Parrainage.objects.create(parrain=parrain, filleul=utilisateur)

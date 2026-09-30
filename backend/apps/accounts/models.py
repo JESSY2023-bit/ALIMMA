@@ -20,6 +20,7 @@ class RoleUtilisateurField(models.CharField):
     """Champ PostgreSQL reposant sur l'énumération ``role_utilisateur``."""
 
     def db_type(self, connection):
+        """Préserve le type enum PostgreSQL défini dans ``schema.sql``."""
         return "role_utilisateur"
 
 
@@ -123,21 +124,26 @@ class Utilisateur(models.Model):
 
     @property
     def is_staff(self):
+        """Donne accès à l'administration Django aux administrateurs seuls."""
         return self.role == self.Role.ADMINISTRATEUR
 
     @property
     def is_superuser(self):
+        """Aligne les droits Django sur le rôle métier administrateur."""
         return self.role == self.Role.ADMINISTRATEUR
 
     @property
     def is_authenticated(self):
+        """Indique à Django REST Framework qu'il s'agit d'un compte réel."""
         return True
 
     @property
     def is_anonymous(self):
+        """Distingue toujours un utilisateur enregistré d'AnonymousUser."""
         return False
 
     def get_username(self):
+        """Retourne l'identifiant de connexion retenu par l'application."""
         return self.telephone
 
     def set_password(self, raw_password):
@@ -149,9 +155,11 @@ class Utilisateur(models.Model):
         return check_password(raw_password, self.password_hash)
 
     def has_perm(self, perm, obj=None):
+        """Délègue les permissions globales Django au rôle administrateur."""
         return self.is_superuser
 
     def has_module_perms(self, app_label):
+        """Autorise l'accès aux modules Django aux seuls administrateurs."""
         return self.is_superuser
 
 

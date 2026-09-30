@@ -1,7 +1,7 @@
 """Paramètres communs à tous les environnements."""
+from datetime import timedelta
 import os
 from pathlib import Path
-from datetime import timedelta
 
 from dotenv import load_dotenv
 
@@ -12,10 +12,14 @@ BASE_DIR = Path(__file__).resolve().parents[2]
 load_dotenv(BASE_DIR / ".env")
 load_dotenv(BASE_DIR.parent / ".env")
 
+# Cette valeur de repli ne convient qu'au poste local : la production doit
+# toujours fournir ``DJANGO_SECRET_KEY`` via son gestionnaire de secrets.
 SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "unsafe-development-key-change-me")
 DEBUG = False
 ALLOWED_HOSTS = [host for host in os.environ.get("DJANGO_ALLOWED_HOSTS", "").split(",") if host]
 
+# Les applications tierces précèdent les domaines métier afin de rendre les
+# dépendances techniques et fonctionnelles immédiatement identifiables.
 INSTALLED_APPS = [
     "django.contrib.admin",
     "django.contrib.auth",
@@ -34,6 +38,8 @@ INSTALLED_APPS = [
     "apps.administration",
 ]
 
+# CORS doit rester avant CommonMiddleware pour traiter les requêtes du client
+# React, y compris lorsqu'elles sont prévolées par le navigateur.
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
@@ -59,6 +65,8 @@ TEMPLATES = [{
 WSGI_APPLICATION = "config.wsgi.application"
 ASGI_APPLICATION = "config.asgi.application"
 
+# La connexion est entièrement configurable pour ne jamais inscrire un secret
+# d'infrastructure dans le dépôt.
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.postgresql",
@@ -82,12 +90,15 @@ USE_I18N = True
 USE_TZ = True
 STATIC_URL = "static/"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+# Django s'appuie sur le modèle métier ``utilisateurs`` et non sur auth.User.
 AUTH_USER_MODEL = "accounts.Utilisateur"
 
 # Le hachage bcrypt est imposé par le contrat de sécurité ALIMMA.
 PASSWORD_HASHERS = ["django.contrib.auth.hashers.BCryptSHA256PasswordHasher"]
 FEATURE_2FA_ENABLED = os.environ.get("FEATURE_2FA_ENABLED", "false").lower() == "true"
 
+# L'API est protégée par JWT par défaut ; les vues publiques déclarent
+# explicitement ``AllowAny`` afin que leur exposition soit visible au code.
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": (
         "rest_framework_simplejwt.authentication.JWTAuthentication",
@@ -99,12 +110,15 @@ REST_FRAMEWORK = {
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
 }
 
+# Les durées sont centralisées ici pour rester cohérentes avec le contrat API.
 SIMPLE_JWT = {
     "ACCESS_TOKEN_LIFETIME": timedelta(minutes=30),
     "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
     "BLACKLIST_AFTER_ROTATION": True,
 }
 
+# La documentation générée reprend les métadonnées et les tags du contrat
+# OpenAPI de référence situé dans ``docs/openapi.yaml``.
 SPECTACULAR_SETTINGS = {
     "TITLE": "ALIMMA API",
     "DESCRIPTION": (
@@ -149,6 +163,7 @@ SPECTACULAR_SETTINGS = {
     "SWAGGER_UI_SETTINGS": {"persistAuthorization": True},
 }
 
+# Redis est notamment utilisé pour limiter les tentatives de connexion.
 CACHES = {
     "default": {
         "BACKEND": "django.core.cache.backends.redis.RedisCache",

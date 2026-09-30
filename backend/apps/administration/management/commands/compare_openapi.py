@@ -50,6 +50,7 @@ class Command(BaseCommand):
             differences.append(f"{label} inattendu : {item}")
 
     def handle(self, *args, **options):
+        """Charge les deux schémas et affiche les écarts utiles au contrat."""
         reference_path = options["reference"]
         if not reference_path.is_file():
             raise CommandError(f"Contrat OpenAPI introuvable : {reference_path}")
@@ -59,6 +60,8 @@ class Command(BaseCommand):
         generated = SchemaGenerator().get_schema(request=None, public=True)
         differences = []
 
+        # Les métadonnées sont comparées séparément pour signaler une dérive
+        # documentaire même lorsqu'aucune route n'a changé.
         for field in ("title", "version", "description"):
             expected = (reference.get("info") or {}).get(field)
             actual = (generated.get("info") or {}).get(field)
@@ -67,6 +70,8 @@ class Command(BaseCommand):
                     f"info.{field} diffère : attendu={expected!r}, généré={actual!r}"
                 )
 
+        # Les ensembles permettent une comparaison stable, indépendante de
+        # l'ordre de déclaration dans les fichiers YAML ou les vues Django.
         self._report_set_difference(
             "Tag", self._names(reference.get("tags")), self._names(generated.get("tags")), differences
         )

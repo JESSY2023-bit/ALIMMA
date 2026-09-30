@@ -8,6 +8,7 @@ class IsModerator(BasePermission):
     message = "Cette action requiert le rôle modérateur."
 
     def has_permission(self, request, view):
+        """Accepte un JWT authentifié portant un rôle de modération autorisé."""
         return bool(request.user and request.user.is_authenticated) and getattr(
             request.user, "role", None
         ) in {"moderateur", "administrateur"}

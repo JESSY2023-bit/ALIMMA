@@ -25,6 +25,8 @@ class LoginAttemptLimiter:
     def register_failure(cls, identifier):
         """Incrémente un échec en conservant une fenêtre glissante de quinze minutes."""
         key = cls._key(identifier)
+        # ``add`` initialise l'expiration une seule fois ; les incréments
+        # suivants ne prolongent donc pas indéfiniment le blocage.
         if cache.add(key, 1, timeout=cls.timeout_seconds):
             return 1
         return cache.incr(key)

@@ -14,6 +14,8 @@ def _first_message(detail):
 
 def api_exception_handler(exc, context):
     """Convertit les exceptions DRF en ``{code, message}``."""
+    # Le gestionnaire DRF conserve le traitement standard des exceptions qu'il
+    # connaît, puis ce projet normalise uniquement la réponse publique.
     response = drf_exception_handler(exc, context)
     if response is None:
         return response

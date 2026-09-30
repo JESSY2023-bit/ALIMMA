@@ -8,4 +8,5 @@ class IsAnnonceOwner(BasePermission):
     message = "Seul le vendeur de l'annonce peut effectuer cette action."
 
     def has_object_permission(self, request, view, obj):
+        """Vérifie que le compte JWT est bien le vendeur de l'annonce ciblée."""
         return obj.vendeur_id == request.user.id
