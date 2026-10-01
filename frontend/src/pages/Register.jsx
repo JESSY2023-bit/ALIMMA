@@ -1,162 +1,153 @@
+
+
 import { useState } from "react";
-import { Link } from "react-router-dom";
-import { FaEye, FaEyeSlash } from "react-icons/fa";
+import { Link, useNavigate } from "react-router-dom";
+import { FaEye, FaEyeSlash, FaArrowLeft } from "react-icons/fa";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { registerSchema } from "../schemas/authSchema";
+import { useRegister } from "../hooks/useAuth";
 
 export default function Register() {
-  const [formData, setFormData] = useState({
-    name: "",
-    email: "",
-    password: "",
-    confirmPassword: "",
-  });
-
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [apiError, setApiError] = useState("");
+  const [successMsg, setSuccessMsg] = useState("");
+  
+  const navigate = useNavigate();
+  const registerMutation = useRegister();
 
-  const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.value]: e.target.value });
-  };
+  const { register, handleSubmit, formState: { errors } } = useForm({
+    resolver: zodResolver(registerSchema),
+  });
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    console.log("Formulaire soumis :", formData);
+  const onSubmit = (data) => {
+    setApiError("");
+    setSuccessMsg("");
+    
+    registerMutation.mutate(data, {
+      onSuccess: () => {
+        setSuccessMsg("Compte créé avec succès ! Redirection...");
+        setTimeout(() => navigate("/login"), 2000);
+      },
+      onError: (error) => {
+        setApiError(error.response?.data?.message || "Erreur lors de l'inscription.");
+      },
+    });
   };
 
   return (
-    <div className="min-h-[75vh] flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 bg-white">
+    <div className="min-h-[75vh] flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 bg-white relative">
+      <button
+        onClick={() => navigate(-1)}
+        className="absolute top-6 left-6 md:top-8 md:left-8 flex items-center gap-2 text-gray-500 hover:text-primary transition-colors group"
+      >
+        <FaArrowLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
+        <span className="font-medium text-sm">Retour</span>
+      </button>
+
       <div className="max-w-6xl w-full grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-        
-        {/* Colonne Gauche : Vector Illustration E-commerce */}
         <div className="flex justify-center items-center">
-          <img
-            src="https://cdni.iconscout.com/illustration/premium/thumb/online-shopping-app-illustration-download-in-svg-png-gif-file-formats--mobile-store-[#f05a22]-buy-e-commerce-pack-illustrations-3798242.png?f=webp&w=600"
-            alt="Illustration Alimma"
-            className="w-full max-w-md h-auto object-contain"
-            onError={(e) => {
-              // Image SVG Fallback si le lien réseau bloque
-              e.target.src = "https://illustrations.popsy.co/amber/shopping-bags.svg";
-            }}
-          />
+          <img src="/login.png" alt="Illustration" className="w-full max-w-md h-auto object-contain" />
         </div>
 
-        {/* Colonne Droite : Formulaire S'inscrire */}
         <div className="max-w-md w-full mx-auto space-y-6">
           <div>
-            <h2 className="text-4xl font-extrabold text-[#f05a22] tracking-tight mb-1">
-              S'inscrire
-            </h2>
-            <p className="text-xs font-bold tracking-widest text-[#9ca3af] uppercase">
-              REJOIGNEZ-NOUS
-            </p>
+            <h2 className="text-4xl font-extrabold text-primary tracking-tight mb-1">S'inscrire</h2>
+            <p className="text-xs font-bold tracking-widest text-gray-400 uppercase">REJOIGNEZ-NOUS</p>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          {apiError && <div className="bg-red-50 text-red-500 text-sm p-3 rounded-lg">{apiError}</div>}
+          {successMsg && <div className="bg-green-50 text-green-600 text-sm p-3 rounded-lg">{successMsg}</div>}
+
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
             {/* Nom */}
             <div>
-              <label htmlFor="name" className="block text-sm font-medium text-[#1a1a1a] mb-1.5">
-                Votre nom
-              </label>
+              <label className="block text-sm font-medium text-gray-800 mb-1.5">Votre nom complet</label>
               <input
-                id="name"
+                {...register("nom")}
                 type="text"
-                name="name"
-                placeholder="Votre nom complet"
-                value={formData.name}
-                onChange={handleChange}
-                required
-                className="w-full rounded-lg border border-gray-200 px-4 py-3 text-sm placeholder:text-gray-400 text-[#1a1a1a] focus:outline-none focus:ring-2 focus:ring-[#f05a22]/30 focus:border-[#f05a22] transition-all"
+                placeholder="Ex: John Doe"
+                className="w-full rounded-lg border border-gray-200 px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 focus:border-primary"
               />
+              {errors.nom && <p className="text-red-500 text-xs mt-1">{errors.nom.message}</p>}
+            </div>
+
+            {/* Téléphone (Nouveau champ requis par l'API) */}
+            <div>
+              <label className="block text-sm font-medium text-gray-800 mb-1.5">Téléphone</label>
+              <input
+                {...register("telephone")}
+                type="tel"
+                placeholder="+237670000000"
+                className="w-full rounded-lg border border-gray-200 px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 focus:border-primary"
+              />
+              {errors.telephone && <p className="text-red-500 text-xs mt-1">{errors.telephone.message}</p>}
             </div>
 
             {/* Email */}
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-[#1a1a1a] mb-1.5">
-                Adresse email
-              </label>
+              <label className="block text-sm font-medium text-gray-800 mb-1.5">Adresse email (Optionnel)</label>
               <input
-                id="email"
+                {...register("email")}
                 type="email"
-                name="email"
                 placeholder="Entrez votre email"
-                value={formData.email}
-                onChange={handleChange}
-                required
-                className="w-full rounded-lg border border-gray-200 px-4 py-3 text-sm placeholder:text-gray-400 text-[#1a1a1a] focus:outline-none focus:ring-2 focus:ring-[#f05a22]/30 focus:border-[#f05a22] transition-all"
+                className="w-full rounded-lg border border-gray-200 px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 focus:border-primary"
               />
+              {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email.message}</p>}
             </div>
 
             {/* Mot de passe */}
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-[#1a1a1a] mb-1.5">
-                Mot de passe
-              </label>
+              <label className="block text-sm font-medium text-gray-800 mb-1.5">Mot de passe</label>
               <div className="relative">
                 <input
-                  id="password"
+                  {...register("password")}
                   type={showPassword ? "text" : "password"}
-                  name="password"
                   placeholder="...."
-                  value={formData.password}
-                  onChange={handleChange}
-                  required
-                  className="w-full rounded-lg border border-gray-200 px-4 py-3 text-sm placeholder:text-gray-400 text-[#1a1a1a] focus:outline-none focus:ring-2 focus:ring-[#f05a22]/30 focus:border-[#f05a22] transition-all"
+                  className="w-full rounded-lg border border-gray-200 px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 focus:border-primary"
                 />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-[#f05a22] transition"
-                >
+                <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-primary">
                   {showPassword ? <FaEyeSlash /> : <FaEye />}
                 </button>
               </div>
+              {errors.password && <p className="text-red-500 text-xs mt-1">{errors.password.message}</p>}
             </div>
 
             {/* Confirmer le mot de passe */}
             <div>
-              <label htmlFor="confirmPassword" className="block text-sm font-medium text-[#1a1a1a] mb-1.5">
-                Confirmez le mot de passe
-              </label>
+              <label className="block text-sm font-medium text-gray-800 mb-1.5">Confirmez le mot de passe</label>
               <div className="relative">
                 <input
-                  id="confirmPassword"
+                  {...register("confirmPassword")}
                   type={showConfirmPassword ? "text" : "password"}
-                  name="confirmPassword"
                   placeholder="...."
-                  value={formData.confirmPassword}
-                  onChange={handleChange}
-                  required
-                  className="w-full rounded-lg border border-gray-200 px-4 py-3 text-sm placeholder:text-gray-400 text-[#1a1a1a] focus:outline-none focus:ring-2 focus:ring-[#f05a22]/30 focus:border-[#f05a22] transition-all"
+                  className="w-full rounded-lg border border-gray-200 px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 focus:border-primary"
                 />
-                <button
-                  type="button"
-                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-[#f05a22] transition"
-                >
+                <button type="button" onClick={() => setShowConfirmPassword(!showConfirmPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-primary">
                   {showConfirmPassword ? <FaEyeSlash /> : <FaEye />}
                 </button>
               </div>
+              {errors.confirmPassword && <p className="text-red-500 text-xs mt-1">{errors.confirmPassword.message}</p>}
             </div>
 
-            {/* Bouton S'inscrire (Orange Vif Direct) */}
+            {/* Bouton S'inscrire */}
             <div className="pt-2">
               <button
                 type="submit"
-                className="bg-[#f05a22] hover:bg-[#d94a15] text-white font-bold text-sm uppercase tracking-wider px-10 py-3.5 rounded-lg shadow-sm transition-colors duration-200 cursor-pointer"
+                disabled={registerMutation.isPending}
+                className="w-full bg-primary hover:bg-primary-dark text-white font-bold text-sm uppercase tracking-wider py-3.5 rounded-lg shadow-sm transition-colors disabled:opacity-70"
               >
-                S'INSCRIRE
+                {registerMutation.isPending ? "Inscription en cours..." : "S'INSCRIRE"}
               </button>
             </div>
           </form>
 
-          {/* Redirection */}
-          <div className="text-xs font-semibold text-[#9ca3af] pt-2 uppercase">
+          <div className="text-xs font-semibold text-gray-400 pt-2 uppercase">
             DÉJÀ UTILISATEUR ?{" "}
-            <Link to="/login" className="text-[#f05a22] hover:underline font-bold ml-1">
-              CONNECTEZ-VOUS
-            </Link>
+            <Link to="/login" className="text-primary hover:underline font-bold ml-1">CONNECTEZ-VOUS</Link>
           </div>
         </div>
-
       </div>
     </div>
   );
