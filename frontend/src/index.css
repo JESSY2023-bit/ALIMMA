@@ -1,15 +1,15 @@
 @import "tailwindcss";
 
 @theme {
-  /* Ici j'enregistrement de la couleur primaire pour Tailwind v4 */
-  --color-primary: #f05a22;
-  --color-primary-dark: #d94a15;
-  --color-primary-light: #ff7a45;
-  --color-primary-50: #fff3ee;
+  /* Nouvelle couleur primaire (Violet foncé ALIMMA) */
+  --color-primary: #3b326b;       /* Couleur principale du bouton SAVE et du panier */
+  --color-primary-dark: #2a2348;  /* Version plus foncée pour le hover */
+  --color-primary-light: #524b80; /* Version plus claire */
+  --color-primary-50: #f0eff7;    /* Version très claire pour les fonds */
 
   /* Couleurs secondaires et neutres */
-  --color-secondary: #1a1a1a;
-  --color-secondary-light: #555555;
+  --color-secondary: #1a1a1a; 
+  --color-secondary-light: #555555; 
   --color-bg-soft: #f5f6f8;
   --color-border-soft: #e5e7eb;
   --color-placeholder: #9ca3af;
@@ -32,31 +32,31 @@
 @layer components {
   /* Arrière-plans principaux */
   .bg-primary {
-    background-color: #f05a22 !important;
+    background-color: var(--color-primary) !important;
   }
   .bg-primary-hover:hover {
-    background-color: #d94a15 !important;
+    background-color: var(--color-primary-dark) !important;
   }
   .bg-primary-soft {
-    background-color: #fff3ee !important;
+    background-color: var(--color-primary-50) !important;
   }
 
   /* Couleurs de texte */
   .text-primary {
-    color: #f05a22 !important;
+    color: var(--color-primary) !important;
   }
   .text-primary-hover:hover {
-    color: #f05a22 !important;
+    color: var(--color-primary) !important;
   }
 
   /* Bordures */
   .border-primary {
-    border-color: #f05a22 !important;
+    border-color: var(--color-primary) !important;
   }
 
   /* Bouton d'action principal */
   .btn-primary {
-    background-color: #f05a22;
+    background-color: var(--color-primary);
     color: #ffffff;
     font-weight: 700;
     text-transform: uppercase;
@@ -69,12 +69,12 @@
     justify-content: center;
   }
   .btn-primary:hover {
-    background-color: #d94a15;
+    background-color: var(--color-primary-dark);
   }
 
   /* Badge compteur (Panier) */
   .badge-primary {
-    background-color: #f05a22;
+    background-color: var(--color-primary);
     color: #ffffff;
     font-weight: 700;
     border-radius: 9999px;
