@@ -1,0 +1,110 @@
+@import "tailwindcss";
+
+@theme {
+  /* Nouvelle couleur primaire (Violet foncé ALIMMA) */
+  --color-primary: #3b326b;
+  --color-primary-dark: #2a2348;
+  --color-primary-light: #524b80;
+  --color-primary-50: #f0eff7;
+
+  /* Couleurs secondaires et neutres */
+  --color-secondary: #1a1a1a;
+  --color-secondary-light: #555555;
+  --color-bg-soft: #f5f6f8;
+  --color-border-soft: #e5e7eb;
+  --color-placeholder: #9ca3af;
+
+  /* Polices */
+  --font-sans: "Inter", system-ui, sans-serif;
+  --font-display: "Poppins", "Inter", sans-serif;
+}
+
+/* Base global */
+@layer base {
+  body {
+    font-family: var(--font-sans);
+    color: var(--color-secondary);
+    background-color: #ffffff;
+  }
+}
+
+/* Classes utilitaires réutilisables */
+@layer components {
+  /* ✅ CONTENEUR UNIQUE POUR TOUTE L'APP */
+  /* Padding réduit pour coller plus près des bords */
+  .alimma-layout {
+    width: 100%;
+    max-width: 100%;         /* Pas de limite de largeur : colle aux bords */
+    margin-left: auto;
+    margin-right: auto;
+    padding-left: 1rem;      /* px-4 sur mobile */
+    padding-right: 1rem;
+  }
+
+  @media (min-width: 640px) {
+    .alimma-layout {
+      padding-left: 1.25rem; /* px-5 sur tablette */
+      padding-right: 1.25rem;
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .alimma-layout {
+      padding-left: 1.5rem;  /* px-6 sur desktop */
+      padding-right: 1.5rem;
+    }
+  }
+
+  /* Arrière-plans principaux */
+  .bg-primary {
+    background-color: var(--color-primary) !important;
+  }
+  .bg-primary-hover:hover {
+    background-color: var(--color-primary-dark) !important;
+  }
+  .bg-primary-soft {
+    background-color: var(--color-primary-50) !important;
+  }
+
+  /* Couleurs de texte */
+  .text-primary {
+    color: var(--color-primary) !important;
+  }
+  .text-primary-hover:hover {
+    color: var(--color-primary) !important;
+  }
+
+  /* Bordures */
+  .border-primary {
+    border-color: var(--color-primary) !important;
+  }
+
+  /* Bouton d'action principal */
+  .btn-primary {
+    background-color: var(--color-primary);
+    color: #ffffff;
+    font-weight: 700;
+    text-transform: uppercase;
+    padding: 0.75rem 2rem;
+    border-radius: 0.5rem;
+    transition: background-color 0.2s ease;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .btn-primary:hover {
+    background-color: var(--color-primary-dark);
+  }
+
+  /* Badge compteur (Panier) */
+  .badge-primary {
+    background-color: var(--color-primary);
+    color: #ffffff;
+    font-weight: 700;
+    border-radius: 9999px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+}
