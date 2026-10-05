@@ -73,7 +73,10 @@ class Command(BaseCommand):
         # Les ensembles permettent une comparaison stable, indépendante de
         # l'ordre de déclaration dans les fichiers YAML ou les vues Django.
         self._report_set_difference(
-            "Tag", self._names(reference.get("tags")), self._names(generated.get("tags")), differences
+            "Tag",
+            self._names(reference.get("tags")),
+            self._names(generated.get("tags")),
+            differences,
         )
         self._report_set_difference(
             "Opération", self._operations(reference), self._operations(generated), differences
