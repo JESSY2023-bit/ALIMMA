@@ -1,8 +1,8 @@
 // src/services/api.js
 import axios from 'axios';
 
-// URL de l'API Django, configurable par environnement.
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/v1';
+
+const API_BASE_URL = 'https://alimma.onrender.com/v1';
 
 export const api = axios.create({
   baseURL: API_BASE_URL,
