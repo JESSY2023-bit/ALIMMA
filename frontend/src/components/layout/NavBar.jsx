@@ -292,7 +292,7 @@ import {
 
 import { useAuthContext } from "../../hooks/useAuthContext";
 import { useLogout } from "../../hooks/useAuth";
-import ConfirmModal from "../ui/ConfirmModal";
+import ConfirmModal from "../ui/confirmModal";
 
 const navItems = [
   { label: "HOMES", to: "/" },
