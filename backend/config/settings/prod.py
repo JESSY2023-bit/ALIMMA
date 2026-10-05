@@ -2,7 +2,7 @@
 
 import os
 
-from .base import *  # noqa: F403
+from .base import *  # noqa: F401,F403
 
 
 def _env_list(name: str, default: tuple[str, ...] = ()) -> list[str]:
