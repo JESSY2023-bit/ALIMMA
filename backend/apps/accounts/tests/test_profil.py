@@ -1,8 +1,9 @@
 """Tests du profil personnel, public et du changement de mot de passe."""
-from base64 import b64decode
 from decimal import Decimal
+from io import BytesIO
 
 from django.core.files.uploadedfile import SimpleUploadedFile
+from PIL import Image
 from rest_framework_simplejwt.tokens import AccessToken
 from rest_framework.test import APIClient
 import pytest
@@ -12,9 +13,13 @@ from apps.catalogue.models import Annonce, Categorie
 
 MON_PROFIL_URL = "/v1/utilisateurs/moi"
 MOT_DE_PASSE_URL = "/v1/utilisateurs/moi/mot-de-passe"
-PNG_VALIDE = b64decode(
-    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADElEQVR42mNk+M/wHwAF/gL+DP1e9QAAAABJRU5ErkJggg=="
-)
+
+
+def png_valide():
+    """Produit des octets PNG valides pour tester la vérification Pillow réelle."""
+    output = BytesIO()
+    Image.new("RGB", (1, 1), color="white").save(output, format="PNG")
+    return output.getvalue()
 
 
 @pytest.fixture
@@ -120,7 +125,7 @@ def test_mise_a_jour_du_profil_refuse_sans_jwt(client):
 def test_upload_photo_de_profil_valide(utilisateur, settings, tmp_path):
     """Une image autorisée est enregistrée par le stockage Django configuré."""
     settings.MEDIA_ROOT = tmp_path
-    photo = SimpleUploadedFile("avatar.png", PNG_VALIDE, content_type="image/png")
+    photo = SimpleUploadedFile("avatar.png", png_valide(), content_type="image/png")
 
     api_client = APIClient()
     api_client.credentials(**auth_headers(utilisateur))
@@ -169,7 +174,7 @@ def test_upload_photo_refuse_un_mime_falsifie(utilisateur):
 @pytest.mark.django_db
 def test_upload_photo_refuse_un_mime_interdit(utilisateur):
     """Le MIME déclaré doit appartenir aux types autorisés, même si le contenu est une image."""
-    photo = SimpleUploadedFile("avatar.pdf", PNG_VALIDE, content_type="application/pdf")
+    photo = SimpleUploadedFile("avatar.pdf", png_valide(), content_type="application/pdf")
     api_client = APIClient()
     api_client.credentials(**auth_headers(utilisateur))
 
