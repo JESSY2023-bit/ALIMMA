@@ -4,7 +4,7 @@ from django.core import signing
 from django.utils import timezone
 from drf_spectacular.utils import extend_schema
 from rest_framework import status
-from rest_framework.exceptions import AuthenticationFailed, PermissionDenied
+from rest_framework.exceptions import AuthenticationFailed, NotFound, PermissionDenied
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -13,15 +13,21 @@ from rest_framework_simplejwt.tokens import RefreshToken
 
 from .serializers import (
     ErreurSerializer,
+    ChangementMotDePasseSerializer,
     InscriptionSerializer,
     LoginSerializer,
     LogoutSerializer,
     RefreshRequestSerializer,
     LoginResponseSerializer,
+    ProfilPublicSerializer,
+    ProfilUpdateJsonSerializer,
+    ProfilUpdateSerializer,
+    ProfilUtilisateurSerializer,
     UtilisateurSerializer,
 )
 from .models import Utilisateur
 from .services import LoginAttemptLimiter
+from apps.catalogue.models import Annonce
 
 INVALID_CREDENTIALS_MESSAGE = "Identifiants invalides."
 
@@ -190,3 +196,93 @@ class LogoutView(APIView):
             raise PermissionDenied("Ce refresh token n'appartient pas à cet utilisateur.")
         refresh.blacklist()
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class MonProfilView(APIView):
+    """Consulte et modifie le profil complet de l'utilisateur authentifié."""
+
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        tags=["Utilisateurs"],
+        responses={200: ProfilUtilisateurSerializer, 401: ErreurSerializer},
+        summary="Récupérer mon profil",
+    )
+    def get(self, request):
+        """Retourne les données privées accessibles à leur seul propriétaire."""
+        return Response(ProfilUtilisateurSerializer(request.user).data)
+
+    @extend_schema(
+        tags=["Utilisateurs"],
+        request={
+            "application/json": ProfilUpdateJsonSerializer,
+            "multipart/form-data": ProfilUpdateSerializer,
+        },
+        responses={
+            200: ProfilUtilisateurSerializer,
+            401: ErreurSerializer,
+            422: ErreurSerializer,
+        },
+        summary="Modifier mon profil",
+    )
+    def patch(self, request):
+        """Applique une mise à jour partielle et, au besoin, stocke la photo fournie."""
+        serializer = ProfilUpdateSerializer(
+            request.user,
+            data=request.data,
+            partial=True,
+        )
+        serializer.is_valid(raise_exception=True)
+        utilisateur = serializer.save()
+        return Response(ProfilUtilisateurSerializer(utilisateur).data)
+
+
+class ChangementMotDePasseView(APIView):
+    """Change le mot de passe du compte après vérification de l'ancien secret."""
+
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        tags=["Utilisateurs"],
+        request=ChangementMotDePasseSerializer,
+        responses={204: None, 401: ErreurSerializer, 422: ErreurSerializer},
+        summary="Changer mon mot de passe",
+    )
+    def put(self, request):
+        """Vérifie l'ancien mot de passe puis persiste un nouveau hash bcrypt."""
+        serializer = ChangementMotDePasseSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        if not request.user.check_password(
+            serializer.validated_data["ancien_mot_de_passe"]
+        ):
+            # La réponse 401 est volontairement générique et ne retourne aucun
+            # détail sur le hash ou la politique de mots de passe.
+            raise AuthenticationFailed("Ancien mot de passe incorrect.")
+        request.user.set_password(serializer.validated_data["nouveau_mot_de_passe"])
+        request.user.save(update_fields=["password_hash", "updated_at"])
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class ProfilPublicView(APIView):
+    """Expose le profil public, sans donnée de contact ni privilège métier."""
+
+    permission_classes = [AllowAny]
+    authentication_classes = []
+
+    @extend_schema(
+        tags=["Utilisateurs"],
+        auth=[],
+        responses={200: ProfilPublicSerializer, 404: ErreurSerializer},
+        summary="Récupérer le profil public d'un utilisateur",
+    )
+    def get(self, request, id):
+        """Retourne le compte uniquement s'il possède au moins une annonce."""
+        # L'existence d'une annonce, et non le rôle, définit l'éligibilité du
+        # profil public. Un compte sans activité de vente reste indétectable.
+        if not Annonce.objects.filter(vendeur_id=id).exists():
+            raise NotFound("Utilisateur introuvable.")
+        try:
+            utilisateur = Utilisateur.objects.get(pk=id)
+        except Utilisateur.DoesNotExist as exc:
+            raise NotFound("Utilisateur introuvable.") from exc
+        return Response(ProfilPublicSerializer(utilisateur).data)

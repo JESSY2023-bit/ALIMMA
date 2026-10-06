@@ -62,6 +62,60 @@ components:
         code_parrainage: { type: string }
         date_inscription: { type: string, format: date-time }
 
+    ProfilUtilisateur:
+      description: Profil complet, accessible uniquement à son propriétaire authentifié.
+      type: object
+      properties:
+        id: { type: integer }
+        nom: { type: string }
+        email: { type: string, format: email, nullable: true }
+        telephone: { type: string }
+        role: { type: string, enum: [utilisateur, vendeur_pro, moderateur, livreur, administrateur] }
+        photo_url: { type: string, nullable: true }
+        note_moyenne: { type: number, format: float }
+        nb_avis: { type: integer }
+        points_parrainage: { type: integer }
+        code_parrainage: { type: string }
+        deux_fa_active: { type: boolean }
+        derniere_connexion: { type: string, format: date-time, nullable: true }
+        date_inscription: { type: string, format: date-time }
+
+    ProfilPublic:
+      description: Informations non sensibles visibles pour tout compte ayant au moins une annonce.
+      type: object
+      properties:
+        id: { type: integer }
+        nom: { type: string }
+        photo_url: { type: string, nullable: true }
+        note_moyenne: { type: number, format: float }
+        nb_avis: { type: integer }
+        date_inscription: { type: string, format: date-time }
+
+    ProfilUpdateJsonRequest:
+      type: object
+      properties:
+        nom: { type: string }
+        email: { type: string, format: email, nullable: true }
+        photo_url: { type: string, nullable: true }
+
+    ProfilUpdateMultipartRequest:
+      type: object
+      properties:
+        nom: { type: string }
+        email: { type: string, format: email, nullable: true }
+        photo_url: { type: string, nullable: true }
+        photo:
+          type: string
+          format: binary
+          description: Image JPEG, PNG ou WebP valide, 2 Mo maximum. Disponible uniquement en multipart/form-data.
+
+    ChangementMotDePasseRequest:
+      type: object
+      required: [ancien_mot_de_passe, nouveau_mot_de_passe]
+      properties:
+        ancien_mot_de_passe: { type: string, format: password }
+        nouveau_mot_de_passe: { type: string, format: password, minLength: 8 }
+
     InscriptionRequest:
       type: object
       required: [nom, telephone, password]
@@ -332,25 +386,25 @@ paths:
           description: Profil utilisateur
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/Utilisateur' }
+              schema: { $ref: '#/components/schemas/ProfilUtilisateur' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
     patch:
       tags: [Utilisateurs]
       summary: Modifier son profil
       requestBody:
         content:
           application/json:
-            schema:
-              type: object
-              properties:
-                nom: { type: string }
-                email: { type: string }
-                photo_url: { type: string }
+            schema: { $ref: '#/components/schemas/ProfilUpdateJsonRequest' }
+          multipart/form-data:
+            schema: { $ref: '#/components/schemas/ProfilUpdateMultipartRequest' }
       responses:
         '200':
           description: Profil mis à jour
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/Utilisateur' }
+              schema: { $ref: '#/components/schemas/ProfilUtilisateur' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/ValidationError' }
 
   /utilisateurs/moi/mot-de-passe:
     put:
@@ -359,19 +413,17 @@ paths:
       requestBody:
         content:
           application/json:
-            schema:
-              type: object
-              required: [ancien_mot_de_passe, nouveau_mot_de_passe]
-              properties:
-                ancien_mot_de_passe: { type: string }
-                nouveau_mot_de_passe: { type: string }
+            schema: { $ref: '#/components/schemas/ChangementMotDePasseRequest' }
       responses:
         '204': { description: Mot de passe modifié }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/ValidationError' }
 
   /utilisateurs/{id}:
     get:
       tags: [Utilisateurs]
-      summary: Profil public d'un utilisateur / vendeur (note, badges, boutique)
+      summary: Profil public d'un compte ayant au moins une annonce (404 sinon)
+      security: []
       parameters:
         - name: id
           in: path
@@ -382,7 +434,7 @@ paths:
           description: Profil public
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/Utilisateur' }
+              schema: { $ref: '#/components/schemas/ProfilPublic' }
         '404': { $ref: '#/components/responses/NotFound' }
 
   # ------------------------------------------------------------- ANNONCES

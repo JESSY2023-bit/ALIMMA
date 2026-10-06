@@ -24,6 +24,7 @@ INSTALLED_APPS = [
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
+    "django.contrib.gis",
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
@@ -69,7 +70,7 @@ ASGI_APPLICATION = "config.asgi.application"
 # d'infrastructure dans le dépôt.
 DATABASES = {
     "default": {
-        "ENGINE": "django.db.backends.postgresql",
+        "ENGINE": "django.contrib.gis.db.backends.postgis",
         "NAME": os.environ.get("POSTGRES_DB", "alimma"),
         "USER": os.environ.get("POSTGRES_USER", "alimma"),
         "PASSWORD": os.environ.get("POSTGRES_PASSWORD", "alimma"),
@@ -89,6 +90,19 @@ TIME_ZONE = "Africa/Douala"
 USE_I18N = True
 USE_TZ = True
 STATIC_URL = "static/"
+# Le stockage par défaut est local en développement. Les vues utilisent
+# ``default_storage`` : un stockage objet pourra être configuré sans changer
+# la logique métier de l'API.
+MEDIA_URL = os.environ.get("MEDIA_URL", "/media/")
+MEDIA_ROOT = Path(os.environ.get("MEDIA_ROOT", BASE_DIR / "media"))
+# Les limites sont centralisées pour garder la validation des fichiers claire
+# et configurable selon le stockage retenu.
+PROFILE_PHOTO_MAX_SIZE = int(os.environ.get("PROFILE_PHOTO_MAX_SIZE", 2 * 1024 * 1024))
+PROFILE_PHOTO_ALLOWED_MIME_TYPES = {
+    "image/jpeg",
+    "image/png",
+    "image/webp",
+}
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 # Django s'appuie sur le modèle métier ``utilisateurs`` et non sur auth.User.
 AUTH_USER_MODEL = "accounts.Utilisateur"
