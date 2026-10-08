@@ -7,6 +7,22 @@ from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parents[2]
 
+
+def declarer_operations_publiques(result, generator, request, public):
+    """Force ``security: []`` pour les opérations publiques du contrat.
+
+    drf-spectacular omet normalement ce champ lorsque ``auth=[]``. Or le
+    contrat ALIMMA le rend explicite pour que les clients sachent qu'aucun
+    Bearer token n'est requis, même en présence de la sécurité globale.
+    """
+    paths = result.get("paths", {})
+    for path in ("/v1/auth/inscription", "/v1/auth/login", "/v1/auth/refresh"):
+        operation = paths.get(path, {}).get("post")
+        if operation is not None:
+            operation["security"] = []
+    return result
+
+
 # Les variables exportées par le système restent prioritaires. Le fichier local
 # simplifie le développement sans être jamais versionné.
 load_dotenv(BASE_DIR / ".env")
@@ -128,6 +144,9 @@ REST_FRAMEWORK = {
 SIMPLE_JWT = {
     "ACCESS_TOKEN_LIFETIME": timedelta(minutes=30),
     "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
+    # Chaque renouvellement rend le refresh présenté inutilisable afin de
+    # limiter l'impact d'un jeton volé.
+    "ROTATE_REFRESH_TOKENS": True,
     "BLACKLIST_AFTER_ROTATION": True,
 }
 
@@ -139,7 +158,14 @@ SPECTACULAR_SETTINGS = {
         "API REST de la marketplace électronique ALIMMA (Cameroun).\n"
         "Couvre l'authentification, le catalogue d'annonces, les commandes, "
         "les paiements (Mobile Money / COD), la livraison, la modération "
-        "et l'administration."
+        "et l'administration.\n\n"
+        "## Authentification\n\n"
+        "Flux : inscription → login → access + refresh → appels avec "
+        "`Authorization: Bearer <access>` → expiration → refresh → logout. "
+        "L'access token expire après 30 minutes et le refresh token après 7 jours. "
+        "Chaque refresh retourne une nouvelle paire et blackliste le refresh "
+        "précédent. Le logout blackliste le refresh fourni et empêche tout "
+        "renouvellement ultérieur."
     ),
     "VERSION": "1.0.0",
     "SERVE_INCLUDE_SCHEMA": False,
@@ -170,10 +196,22 @@ SPECTACULAR_SETTINGS = {
                 "type": "http",
                 "scheme": "bearer",
                 "bearerFormat": "JWT",
+                "description": (
+                    "Obtenez l'access token via `/auth/login`, puis envoyez-le "
+                    "dans `Authorization: Bearer <access_token>`. Dans Swagger UI, "
+                    "le bouton **Authorize** attend uniquement l'access token, sans "
+                    "le préfixe `Bearer`."
+                ),
             }
         }
     },
     "SECURITY": [{"bearerAuth": []}],
+    # La sécurité globale ``bearerAuth`` est le seul mécanisme exposé au
+    # contrat : les opérations publiques sont ensuite exemptées par le hook.
+    "AUTHENTICATION_WHITELIST": [],
+    "POSTPROCESSING_HOOKS": [
+        "config.settings.base.declarer_operations_publiques",
+    ],
     "SWAGGER_UI_SETTINGS": {"persistAuthorization": True},
 }
 

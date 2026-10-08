@@ -1,5 +1,6 @@
 """Compare le schéma OpenAPI produit par Django avec le contrat de référence."""
 from pathlib import Path
+from urllib.parse import urlparse
 
 import yaml
 from django.conf import settings
@@ -34,8 +35,19 @@ class Command(BaseCommand):
     def _operations(schema):
         """Construit l'ensemble ``(chemin, méthode)`` des opérations exposées."""
         methods = {"get", "post", "put", "patch", "delete", "head", "options"}
+        servers = schema.get("servers") or []
+        # Le contrat place ``/v1`` dans l'URL de ses serveurs alors que Django
+        # l'inclut dans les chemins générés. La comparaison utilise donc la
+        # forme relative et évite un faux écart pour chaque opération.
+        prefix = urlparse(servers[0].get("url", "")).path.rstrip("/") if servers else ""
+
+        def relative_path(path):
+            if prefix and (path == prefix or path.startswith(f"{prefix}/")):
+                return path[len(prefix):] or "/"
+            return path
+
         return {
-            (path, method.lower())
+            (relative_path(path), method.lower())
             for path, path_item in (schema.get("paths") or {}).items()
             for method in path_item
             if method.lower() in methods

@@ -2,14 +2,14 @@
 
 @theme {
   /* Nouvelle couleur primaire (Violet foncé ALIMMA) */
-  --color-primary: #3b326b;       /* Couleur principale du bouton SAVE et du panier */
-  --color-primary-dark: #2a2348;  /* Version plus foncée pour le hover */
-  --color-primary-light: #524b80; /* Version plus claire */
-  --color-primary-50: #f0eff7;    /* Version très claire pour les fonds */
+  --color-primary: #3b326b;
+  --color-primary-dark: #2a2348;
+  --color-primary-light: #524b80;
+  --color-primary-50: #f0eff7;
 
   /* Couleurs secondaires et neutres */
-  --color-secondary: #1a1a1a; 
-  --color-secondary-light: #555555; 
+  --color-secondary: #1a1a1a;
+  --color-secondary-light: #555555;
   --color-bg-soft: #f5f6f8;
   --color-border-soft: #e5e7eb;
   --color-placeholder: #9ca3af;
@@ -30,6 +30,31 @@
 
 /* Classes utilitaires réutilisables */
 @layer components {
+  /* ✅ CONTENEUR UNIQUE POUR TOUTE L'APP */
+  /* Padding réduit pour coller plus près des bords */
+  .alimma-layout {
+    width: 100%;
+    max-width: 100%;         /* Pas de limite de largeur : colle aux bords */
+    margin-left: auto;
+    margin-right: auto;
+    padding-left: 1rem;      /* px-4 sur mobile */
+    padding-right: 1rem;
+  }
+
+  @media (min-width: 640px) {
+    .alimma-layout {
+      padding-left: 1.25rem; /* px-5 sur tablette */
+      padding-right: 1.25rem;
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .alimma-layout {
+      padding-left: 1.5rem;  /* px-6 sur desktop */
+      padding-right: 1.5rem;
+    }
+  }
+
   /* Arrière-plans principaux */
   .bg-primary {
     background-color: var(--color-primary) !important;

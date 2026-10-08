@@ -120,7 +120,28 @@ def test_refresh_valide_emet_un_nouvel_access_token(client, utilisateur):
 
     assert response.status_code == 200
     assert AccessToken(response.json()["access_token"])["id"] == utilisateur.id
-    assert response.json()["refresh_token"] == tokens["refresh_token"]
+    assert response.json()["refresh_token"] != tokens["refresh_token"]
+
+
+@pytest.mark.django_db
+def test_refresh_reutilise_apres_rotation_est_blackliste(client, utilisateur):
+    """Un refresh consommé ne peut plus générer une nouvelle paire JWT."""
+    ancien_refresh = login(client, utilisateur.email).json()["refresh_token"]
+    rotation = client.post(
+        REFRESH_URL,
+        {"refresh_token": ancien_refresh},
+        content_type="application/json",
+    )
+    reutilisation = client.post(
+        REFRESH_URL,
+        {"refresh_token": ancien_refresh},
+        content_type="application/json",
+    )
+
+    assert rotation.status_code == 200
+    assert rotation.json()["refresh_token"] != ancien_refresh
+    assert reutilisation.status_code == 401
+    assert set(reutilisation.json()) == {"code", "message"}
 
 
 @pytest.mark.django_db

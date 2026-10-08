@@ -1,11 +1,7 @@
 openapi: 3.0.3
 info:
   title: ALIMMA API
-  description: >
-    API REST de la marketplace électronique ALIMMA (Cameroun).
-    Couvre l'authentification, le catalogue d'annonces, les commandes,
-    les paiements (Mobile Money / COD), la livraison, la modération
-    et l'administration.
+  description: "API REST de la marketplace électronique ALIMMA (Cameroun).\nCouvre l'authentification, le catalogue d'annonces, les commandes, les paiements (Mobile Money / COD), la livraison, la modération et l'administration.\n\n## Authentification\n\nFlux : inscription → login → access + refresh → appels avec `Authorization: Bearer <access>` → expiration → refresh → logout. L'access token expire après 30 minutes et le refresh token après 7 jours. Chaque refresh retourne une nouvelle paire et blackliste le refresh précédent. Le logout blackliste le refresh fourni et empêche tout renouvellement ultérieur."
   version: "1.0.0"
   contact:
     name: Équipe technique ALIMMA
@@ -39,6 +35,7 @@ components:
       type: http
       scheme: bearer
       bearerFormat: JWT
+      description: "Obtenez l'access token via `/auth/login`, puis envoyez-le dans `Authorization: Bearer <access_token>`. Dans Swagger UI, le bouton **Authorize** attend uniquement l'access token, sans le préfixe `Bearer`."
 
   schemas:
     Erreur:
@@ -258,7 +255,12 @@ components:
 
   responses:
     Unauthorized:
-      description: Authentification requise ou invalide
+      description: |
+        Authentification requise ou invalide. Les codes réellement renvoyés sont :
+        - `NOT_AUTHENTICATED` : access token absent sur une route protégée.
+        - `TOKEN_NOT_VALID` : access token invalide ou expiré.
+        - `AUTHENTICATION_FAILED` : identifiants invalides, compte suspendu,
+          refresh expiré, invalide ou blacklisté.
       content:
         application/json:
           schema: { $ref: '#/components/schemas/Erreur' }
@@ -315,12 +317,20 @@ paths:
         content:
           application/json:
             schema: { $ref: '#/components/schemas/LoginRequest' }
+            example:
+              identifiant: alice@example.cm
+              password: mot-de-passe-solide
       responses:
         '200':
           description: OTP envoyé, ou connexion directe si 2FA désactivée
           content:
             application/json:
               schema: { $ref: '#/components/schemas/LoginResponse' }
+              example:
+                otp_requis: false
+                access_token: <access_token>
+                refresh_token: <refresh_token>
+                utilisateur: { id: 1, nom: Alice Ngono }
         '401': { $ref: '#/components/responses/Unauthorized' }
 
   /auth/verify-otp:
@@ -354,12 +364,19 @@ paths:
               type: object
               required: [refresh_token]
               properties: { refresh_token: { type: string } }
+            example: { refresh_token: <refresh_token> }
       responses:
         '200':
-          description: Nouveau token
+          description: Nouvelle paire JWT. Le refresh token fourni est blacklisté.
           content:
             application/json:
               schema: { $ref: '#/components/schemas/LoginResponse' }
+              example:
+                otp_requis: false
+                access_token: <nouvel_access_token>
+                refresh_token: <nouveau_refresh_token>
+                utilisateur: { id: 1, nom: Alice Ngono }
+        '401': { $ref: '#/components/responses/Unauthorized' }
 
   /auth/logout:
     post:
@@ -373,8 +390,10 @@ paths:
               type: object
               required: [refresh_token]
               properties: { refresh_token: { type: string } }
+            example: { refresh_token: <refresh_token> }
       responses:
         '204': { description: Déconnecté }
+        '401': { $ref: '#/components/responses/Unauthorized' }
 
   # ---------------------------------------------------------- UTILISATEURS
   /utilisateurs/moi:

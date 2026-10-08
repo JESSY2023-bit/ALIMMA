@@ -31,8 +31,9 @@ services:
       - ../backend/.env
     volumes:
       - ../backend:/app
-      # Les photos restent disponibles même si le conteneur backend est recréé.
-      - media_data:/app/media
+      # Le contrat est monté en lecture seule pour permettre la comparaison
+      # OpenAPI depuis le conteneur sans rendre la documentation modifiable.
+      - ../docs:/docs:ro
     ports:
       - "8000:8000"
     depends_on:
