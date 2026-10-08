@@ -1,24 +1,26 @@
+// src/components/layout/MainLayout.jsx
 import { Outlet } from "react-router-dom";
 import TopBar from "./TopBar";
-import Navbar from "./NavBar";
+import Navbar from "./Navbar";
 import SearchBar from "./SearchBar";
 import Footer from "./Footer";
 
 export default function MainLayout() {
   return (
-    <div className="min-h-screen flex flex-col">
-      {/* Partie haute fixe sur toutes les pages */}
-      <header>
+    <div className="min-h-screen flex flex-col bg-white">
+      {/* Header complet */}
+      <header className="w-full">
         <TopBar />
         <Navbar />
         <SearchBar />
       </header>
 
-      {/* Contenu de la page courante */}
-      <main className="flex-1">
+      {/* Contenu de la page */}
+      <main className="flex-1 w-full">
         <Outlet />
       </main>
 
+      {/* Footer */}
       <Footer />
     </div>
   );
