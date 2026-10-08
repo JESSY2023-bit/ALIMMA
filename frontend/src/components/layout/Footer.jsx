@@ -1,5 +1,4 @@
 // Footer.jsx
-import React from 'react';
 import NewsletterForm from '../NewsLetter';
 import { FaChevronDown } from 'react-icons/fa';
 

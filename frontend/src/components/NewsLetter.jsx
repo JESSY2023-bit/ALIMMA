@@ -1,6 +1,4 @@
 // components/NewsletterForm.jsx
-import React from 'react';
-
 export default function NewsletterForm() {
   return (
     <div className="w-full max-w-2xl flex flex-col items-center text-center">

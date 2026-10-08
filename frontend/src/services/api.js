@@ -1,7 +1,11 @@
 // src/services/api.js
 import axios from 'axios';
 
-const API_BASE_URL = 'https://alimma.onrender.com/v1';
+// L'URL dépend de l'environnement Vite : local avec Docker ou API distante.
+// La valeur de secours permet d'utiliser directement le backend local.
+const API_BASE_URL = (
+  import.meta.env.VITE_API_URL || 'http://localhost:8000/v1'
+).replace(/\/$/, '');
 
 export const api = axios.create({
   baseURL: API_BASE_URL,

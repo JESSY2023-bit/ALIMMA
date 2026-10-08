@@ -7,6 +7,7 @@ ALLOWED_HOSTS = ["localhost", "127.0.0.1", "testserver"]
 # variable d'environnement permet d'ajouter un port de développement.
 CORS_ALLOWED_ORIGINS = [
     origin for origin in __import__("os").environ.get(
-        "CORS_ALLOWED_ORIGINS", "http://localhost:3000,http://localhost:5173"
+        "CORS_ALLOWED_ORIGINS",
+        "http://localhost:3000,http://localhost:5173,http://127.0.0.1:5173",
     ).split(",") if origin
 ]

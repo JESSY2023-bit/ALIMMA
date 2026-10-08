@@ -15,7 +15,9 @@ export const useLogin = () =>
 export const useRegister = () =>
   useMutation({
     mutationFn: async (userData) => {
-      const { confirmPassword, ...payload } = userData;
+      // Le champ sert uniquement à la validation du formulaire frontend.
+      const payload = { ...userData };
+      delete payload.confirmPassword;
       const { data } = await api.post('/auth/inscription', payload);
       return data;
     },
