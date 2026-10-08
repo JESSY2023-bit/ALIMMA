@@ -108,7 +108,9 @@ class ProfilUpdateSerializer(serializers.ModelSerializer):
             image_format = image.format
             image.verify()
         except (UnidentifiedImageError, OSError, SyntaxError, ValueError) as exc:
-            raise serializers.ValidationError("Le fichier fourni n'est pas une image valide.") from exc
+            raise serializers.ValidationError(
+                "Le fichier fourni n'est pas une image valide."
+            ) from exc
         finally:
             # Le stockage Django doit relire le fichier depuis le début après
             # l'inspection réalisée par Pillow.

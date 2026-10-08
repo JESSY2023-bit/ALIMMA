@@ -2,9 +2,13 @@
 import axios from 'axios';
 
 // L'URL dépend de l'environnement Vite : local avec Docker ou API distante.
-// La valeur de secours permet d'utiliser directement le backend local.
+// Le secours localhost est réservé au mode développement.
+const DEFAULT_API_BASE_URL = import.meta.env.DEV
+  ? 'http://localhost:8000/v1'
+  : '/v1';
+
 const API_BASE_URL = (
-  import.meta.env.VITE_API_URL || 'http://localhost:8000/v1'
+  import.meta.env.VITE_API_URL || DEFAULT_API_BASE_URL
 ).replace(/\/$/, '');
 
 export const api = axios.create({
