@@ -170,8 +170,30 @@ cp frontend/.env.example frontend/.env
 docker compose --env-file infra/.env -f infra/docker-compose.yml up -d --build
 ```
 
-Le client est alors disponible sur `http://127.0.0.1:5173/`. Sa variable
-`VITE_API_URL` doit viser `http://localhost:8000/v1` en développement local.
+Le client est alors disponible sur `http://127.0.0.1:5173/`. En Docker,
+`VITE_API_URL=/v1` est relayé par le proxy Vite vers le service `backend` : le
+navigateur n'appelle donc pas directement le port 8000.
+
+## Lien frontend Vercel / backend Render
+
+Une URL `localhost` ne fonctionne que sur votre ordinateur. Dans Vercel,
+ouvrez **Project Settings** > **Environment Variables** et créez la variable
+suivante pour les environnements **Production** et **Preview** :
+
+```dotenv
+VITE_API_URL=https://votre-service.onrender.com/v1
+```
+
+Remplacez l'exemple par l'URL HTTPS publique exacte de votre Web Service
+Render. Après la sauvegarde, redéployez Vercel : les variables `VITE_*` sont
+intégrées au build, elles ne sont pas lues dynamiquement par le navigateur.
+
+Dans Render, définissez également `CORS_ALLOWED_ORIGINS` avec les origines
+Vercel autorisées, sans chemin `/v1`, par exemple :
+
+```dotenv
+CORS_ALLOWED_ORIGINS=https://alimma.vercel.app,https://alimma-git-develop-votre-compte.vercel.app
+```
 
 ## Préparation de la production
 

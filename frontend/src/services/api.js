@@ -1,11 +1,9 @@
 // src/services/api.js
 import axios from 'axios';
 
-// L'URL dépend de l'environnement Vite : local avec Docker ou API distante.
-// Le secours localhost est réservé au mode développement.
-const DEFAULT_API_BASE_URL = import.meta.env.DEV
-  ? 'http://localhost:8000/v1'
-  : '/v1';
+// En local, Vite relaie /v1 vers Django. En production, Vercel injecte
+// VITE_API_URL avec l'URL HTTPS publique du service Render.
+const DEFAULT_API_BASE_URL = '/v1';
 
 const API_BASE_URL = (
   import.meta.env.VITE_API_URL || DEFAULT_API_BASE_URL
