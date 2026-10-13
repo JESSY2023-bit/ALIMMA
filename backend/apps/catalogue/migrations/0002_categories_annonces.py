@@ -2,7 +2,6 @@
 from decimal import Decimal
 
 import apps.catalogue.models
-import django.contrib.gis.db.models.fields
 import django.db.models.deletion
 import django.utils.timezone
 from django.db import migrations, models
@@ -60,7 +59,8 @@ class Migration(migrations.Migration):
                 ("etat", apps.catalogue.models.EtatProduitField(choices=[("neuf", "Neuf"), ("occasion", "Occasion")], default="occasion", max_length=10)),
                 ("ville", models.CharField(max_length=100)),
                 ("quartier", models.CharField(blank=True, max_length=100, null=True)),
-                ("localisation", django.contrib.gis.db.models.fields.PointField(blank=True, geography=True, null=True, srid=4326)),
+                ("latitude", models.DecimalField(blank=True, decimal_places=6, max_digits=9, null=True)),
+                ("longitude", models.DecimalField(blank=True, decimal_places=6, max_digits=9, null=True)),
                 ("statut", apps.catalogue.models.StatutAnnonceField(choices=[("en_attente_moderation", "En attente de modération"), ("active", "Active"), ("en_pause", "En pause"), ("rejetee", "Rejetée"), ("vendue", "Vendue"), ("expiree", "Expirée")], default="en_attente_moderation", max_length=25)),
                 ("nb_vues", models.IntegerField(default=0)),
                 ("date_publication", models.DateTimeField(blank=True, null=True)),
@@ -80,9 +80,12 @@ class Migration(migrations.Migration):
         migrations.AddIndex(model_name="annonce", index=models.Index(fields=["vendeur"], name="idx_annonces_vendeur")),
         migrations.AddIndex(model_name="annonce", index=models.Index(fields=["categorie"], name="idx_annonces_categorie")),
         migrations.AddIndex(model_name="annonce", index=models.Index(fields=["statut"], name="idx_annonces_statut")),
-        migrations.RunSQL(
-            "CREATE INDEX idx_annonces_localisation ON annonces USING GIST (localisation);",
-            "DROP INDEX IF EXISTS idx_annonces_localisation;",
+        migrations.AddIndex(
+            model_name="annonce",
+            index=models.Index(
+                fields=["latitude", "longitude"],
+                name="idx_annonces_coordinates",
+            ),
         ),
         migrations.RunSQL(
             "CREATE INDEX idx_annonces_titre_trgm ON annonces USING GIN (titre gin_trgm_ops);",

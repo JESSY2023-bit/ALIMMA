@@ -2,7 +2,7 @@
 
 Ce document décrit l'installation locale du backend ALIMMA et le démarrage
 avec Docker Compose. L'API est une application Django 5/DRF utilisant
-PostgreSQL 16 avec PostGIS et Redis.
+PostgreSQL 16 et Redis.
 
 > `docs/schema.sql` est un document de conception. Ne l'exécutez pas : les
 > tables et extensions sont créées exclusivement par les migrations Django.
@@ -117,7 +117,7 @@ docker compose --env-file infra/.env -f infra/docker-compose.yml down -v
 
 ## Démarrage hors Docker
 
-Lancez PostgreSQL/PostGIS et Redis, puis configurez `backend/.env` avec :
+Lancez PostgreSQL et Redis, puis configurez `backend/.env` avec :
 
 ```dotenv
 POSTGRES_HOST=127.0.0.1

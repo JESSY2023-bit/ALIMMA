@@ -1,5 +1,8 @@
 services:
   postgres:
+    # L'image conserve les fonctions nécessaires à la migration de bases de
+    # développement créées avant l'abandon de GeoDjango. La migration 0003
+    # retire ensuite l'extension PostGIS de la base finale.
     image: postgis/postgis:16-3.5-alpine
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-alimma}

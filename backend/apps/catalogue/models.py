@@ -1,7 +1,6 @@
 """Modèles de catégories et d'annonces conformes au schéma PostgreSQL ALIMMA."""
 from decimal import Decimal
 
-from django.contrib.gis.db import models as gis_models
 from django.db import models
 from django.utils import timezone
 
@@ -94,7 +93,18 @@ class Annonce(models.Model):
     )
     ville = models.CharField(max_length=100)
     quartier = models.CharField(max_length=100, null=True, blank=True)
-    localisation = gis_models.PointField(geography=True, srid=4326, null=True, blank=True)
+    latitude = models.DecimalField(
+        max_digits=9,
+        decimal_places=6,
+        null=True,
+        blank=True,
+    )
+    longitude = models.DecimalField(
+        max_digits=9,
+        decimal_places=6,
+        null=True,
+        blank=True,
+    )
     statut = StatutAnnonceField(
         max_length=25,
         choices=Statut.choices,
@@ -118,4 +128,8 @@ class Annonce(models.Model):
             models.Index(fields=["vendeur"], name="idx_annonces_vendeur"),
             models.Index(fields=["categorie"], name="idx_annonces_categorie"),
             models.Index(fields=["statut"], name="idx_annonces_statut"),
+            models.Index(
+                fields=["latitude", "longitude"],
+                name="idx_annonces_coordinates",
+            ),
         ]

@@ -40,7 +40,6 @@ INSTALLED_APPS = [
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
-    "django.contrib.gis",
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
@@ -86,7 +85,7 @@ ASGI_APPLICATION = "config.asgi.application"
 # d'infrastructure dans le dépôt.
 DATABASES = {
     "default": {
-        "ENGINE": "django.contrib.gis.db.backends.postgis",
+        "ENGINE": "django.db.backends.postgresql",
         "NAME": os.environ.get("POSTGRES_DB", "alimma"),
         "USER": os.environ.get("POSTGRES_USER", "alimma"),
         "PASSWORD": os.environ.get("POSTGRES_PASSWORD", "alimma"),
