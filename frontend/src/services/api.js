@@ -3,7 +3,7 @@ import axios from 'axios';
 
 // En local, Vite relaie /v1 vers Django. En production, Vercel injecte
 // VITE_API_URL avec l'URL HTTPS publique du service Render.
-const DEFAULT_API_BASE_URL = '/v1';
+const VITE_API_URL = '/v1';
 
 const API_BASE_URL = (
   import.meta.env.VITE_API_URL || DEFAULT_API_BASE_URL
