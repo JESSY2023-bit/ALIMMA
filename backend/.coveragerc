@@ -1,0 +1,13 @@
+[run]
+source = apps
+omit =
+    */migrations/*
+    */tests/*
+    */__init__.py
+
+[report]
+omit =
+    */migrations/*
+    */tests/*
+    */__init__.py
+

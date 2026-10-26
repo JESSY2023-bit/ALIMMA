@@ -32,7 +32,7 @@ load_dotenv(BASE_DIR.parent / ".env")
 # toujours fournir ``DJANGO_SECRET_KEY`` via son gestionnaire de secrets.
 SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "unsafe-development-key-change-me")
 DEBUG = False
-ALLOWED_HOSTS = [host for host in os.environ.get("DJANGO_ALLOWED_HOSTS", "").split(",") if host]
+ALLOWED_HOSTS = [host for host in os.environ.get("ALLOWED_HOSTS", "").split(",") if host]
 
 # Les applications tierces précèdent les domaines métier afin de rendre les
 # dépendances techniques et fonctionnelles immédiatement identifiables.
@@ -88,9 +88,14 @@ DATABASES = {
         "ENGINE": "django.db.backends.postgresql",
         "NAME": os.environ.get("POSTGRES_DB", "alimma"),
         "USER": os.environ.get("POSTGRES_USER", "alimma"),
-        "PASSWORD": os.environ.get("POSTGRES_PASSWORD", "alimma"),
+        "PASSWORD": os.environ.get("POSTGRES_PASSWORD", ""),
         "HOST": os.environ.get("POSTGRES_HOST", "127.0.0.1"),
         "PORT": os.environ.get("POSTGRES_PORT", "5432"),
+        "OPTIONS": {
+            "sslmode": os.environ.get("POSTGRES_SSLMODE", "prefer"),
+        },
+        "CONN_MAX_AGE": 60,
+        "CONN_HEALTH_CHECKS": True,
     }
 }
 
