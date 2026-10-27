@@ -16,7 +16,12 @@ def declarer_operations_publiques(result, generator, request, public):
     Bearer token n'est requis, même en présence de la sécurité globale.
     """
     paths = result.get("paths", {})
-    for path in ("/v1/auth/inscription", "/v1/auth/login", "/v1/auth/refresh"):
+    for path in (
+        "/v1/auth/inscription",
+        "/v1/auth/login",
+        "/v1/auth/refresh",
+        "/v1/admin/categories",
+    ):
         operation = paths.get(path, {}).get("post")
         if operation is not None:
             operation["security"] = []

@@ -235,6 +235,38 @@ components:
         commentaire: { type: string, nullable: true }
         created_at: { type: string, format: date-time }
 
+    UtilisateurAdministration:
+      type: object
+      properties:
+        id: { type: integer }
+        nom: { type: string }
+        email: { type: string, format: email, nullable: true }
+        telephone: { type: string }
+        role: { type: string, enum: [utilisateur, vendeur_pro, moderateur, livreur, administrateur] }
+        est_actif: { type: boolean }
+        date_inscription: { type: string, format: date-time }
+
+    Categorie:
+      type: object
+      properties:
+        id: { type: integer }
+        nom: { type: string }
+        slug: { type: string }
+        parent_id: { type: integer, nullable: true }
+        icone_url: { type: string, nullable: true }
+        ordre_affichage: { type: integer }
+        enfants:
+          type: array
+          items: { $ref: '#/components/schemas/Categorie' }
+
+    CategorieEcritureRequest:
+      type: object
+      properties:
+        nom: { type: string, maxLength: 100 }
+        parent_id: { type: integer, nullable: true }
+        icone_url: { type: string, nullable: true }
+        ordre_affichage: { type: integer }
+
     Pagination:
       type: object
       properties:
@@ -1036,12 +1068,26 @@ paths:
         - { $ref: '#/components/parameters/PageParam' }
         - name: role
           in: query
-          schema: { type: string }
+          schema: { type: string, enum: [utilisateur, vendeur_pro, moderateur, livreur, administrateur] }
         - name: q
           in: query
           schema: { type: string }
       responses:
-        '200': { description: Liste des utilisateurs }
+        '200':
+          description: Liste paginée des utilisateurs
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  count: { type: integer }
+                  next: { type: string, nullable: true }
+                  previous: { type: string, nullable: true }
+                  results:
+                    type: array
+                    items: { $ref: '#/components/schemas/UtilisateurAdministration' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
 
   /admin/utilisateurs/{id}/role:
     patch:
@@ -1050,14 +1096,24 @@ paths:
       parameters:
         - { name: id, in: path, required: true, schema: { type: integer } }
       requestBody:
+        required: true
         content:
           application/json:
             schema:
               type: object
+              required: [role]
               properties:
                 role: { type: string, enum: [utilisateur, vendeur_pro, moderateur, livreur, administrateur] }
       responses:
-        '200': { description: Rôle mis à jour }
+        '200':
+          description: Rôle mis à jour et profil associé créé si nécessaire
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UtilisateurAdministration' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationError' }
 
   /admin/utilisateurs/{id}/suspendre:
     post:
@@ -1066,7 +1122,14 @@ paths:
       parameters:
         - { name: id, in: path, required: true, schema: { type: integer } }
       responses:
-        '200': { description: Statut du compte modifié }
+        '200':
+          description: Statut du compte modifié ; les refresh tokens sont invalidés à la suspension
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UtilisateurAdministration' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
 
   /admin/categories:
     get:
@@ -1074,20 +1137,30 @@ paths:
       summary: Lister les catégories et sous-catégories
       security: []
       responses:
-        '200': { description: Arborescence des catégories }
+        '200':
+          description: Arborescence des catégories, sur deux niveaux maximum
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Categorie' }
     post:
       tags: [Administration]
       summary: Créer une catégorie ou sous-catégorie
       requestBody:
+        required: true
         content:
           application/json:
-            schema:
-              type: object
-              properties:
-                nom: { type: string }
-                parent_id: { type: integer, nullable: true }
+            schema: { $ref: '#/components/schemas/CategorieEcritureRequest' }
       responses:
-        '201': { description: Catégorie créée }
+        '201':
+          description: Catégorie créée avec slug généré automatiquement
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Categorie' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/ValidationError' }
 
   /admin/categories/{id}:
     patch:
@@ -1095,8 +1168,21 @@ paths:
       summary: Modifier une catégorie
       parameters:
         - { name: id, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CategorieEcritureRequest' }
       responses:
-        '200': { description: Catégorie modifiée }
+        '200':
+          description: Catégorie modifiée
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Categorie' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationError' }
     delete:
       tags: [Administration]
       summary: Supprimer une catégorie
@@ -1104,6 +1190,10 @@ paths:
         - { name: id, in: path, required: true, schema: { type: integer } }
       responses:
         '204': { description: Catégorie supprimée }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { description: Suppression bloquée par des rattachements }
 
   /admin/promotions:
     post:
