@@ -2,6 +2,7 @@
 from decimal import Decimal
 
 from django.db import models
+from django.contrib.postgres.indexes import GistIndex
 from django.utils import timezone
 
 
@@ -27,6 +28,22 @@ class StatutAnnonceField(models.CharField):
     def db_type(self, connection):
         """Préserve le type enum PostgreSQL lors des migrations."""
         return "statut_annonce"
+
+
+class GeographyPointField(models.Field):
+    """Champ PostGIS léger stockant exactement ``GEOGRAPHY(POINT, 4326)``.
+
+    Le projet ne dépend pas de GeoDjango/GDAL : les écritures utilisent le WKT
+    standard ``SRID=4326;POINT(longitude latitude)`` et PostGIS fait le reste.
+    """
+
+    def db_type(self, connection):
+        """Déclare le type géographique imposé par l'US et l'index GiST."""
+        return "geography(POINT,4326)"
+
+    def get_internal_type(self):
+        """Utilise les conversions de valeur textuelle de Django."""
+        return "TextField"
 
 
 class Categorie(models.Model):
@@ -105,6 +122,8 @@ class Annonce(models.Model):
         null=True,
         blank=True,
     )
+    # La géographie reste nullable : une annonce peut être publiée sans position.
+    localisation = GeographyPointField(null=True, blank=True)
     statut = StatutAnnonceField(
         max_length=25,
         choices=Statut.choices,
@@ -132,4 +151,22 @@ class Annonce(models.Model):
                 fields=["latitude", "longitude"],
                 name="idx_annonces_coordinates",
             ),
+            GistIndex(fields=["localisation"], name="idx_annonces_localisation_gist"),
         ]
+
+
+class AnnonceImage(models.Model):
+    """Image stockée d'une annonce, avec l'ordre explicite demandé par le contrat."""
+
+    annonce = models.ForeignKey(
+        Annonce,
+        on_delete=models.CASCADE,
+        related_name="images",
+    )
+    url = models.TextField()
+    ordre = models.SmallIntegerField(default=0)
+
+    class Meta:
+        db_table = "annonce_images"
+        indexes = [models.Index(fields=["annonce"], name="idx_annonce_images_annonce")]
+        ordering = ("ordre", "id")

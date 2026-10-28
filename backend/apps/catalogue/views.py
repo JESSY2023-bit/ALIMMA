@@ -10,7 +10,12 @@ from apps.accounts.permissions import EstAdministrateur
 from apps.accounts.serializers import ErreurSerializer
 
 from .models import Annonce, Categorie
-from .serializers import CategorieEcritureSerializer, CategorieSerializer
+from .serializers import (
+    AnnonceCreationSerializer,
+    AnnonceSerializer,
+    CategorieEcritureSerializer,
+    CategorieSerializer,
+)
 
 
 class ConflitCategorie(APIException):
@@ -19,6 +24,43 @@ class ConflitCategorie(APIException):
     status_code = status.HTTP_409_CONFLICT
     default_code = "CONFLICT"
     default_detail = "La catégorie ne peut pas être supprimée."
+
+
+class AnnoncesView(APIView):
+    """Publie une annonce authentifiée et liste seulement les annonces validées."""
+
+    def get_permissions(self):
+        """Rend la liste publique et réserve la publication aux comptes connectés."""
+        if self.request.method == "GET":
+            return [AllowAny()]
+        return [IsAuthenticated()]
+
+    @extend_schema(
+        tags=["Annonces"],
+        auth=[],
+        responses={200: AnnonceSerializer(many=True)},
+        summary="Lister les annonces publiquement visibles",
+    )
+    def get(self, request):
+        """Ne retourne jamais les annonces encore soumises à la modération."""
+        annonces = Annonce.objects.filter(statut=Annonce.Statut.ACTIVE).prefetch_related("images")
+        return Response(AnnonceSerializer(annonces.order_by("-created_at"), many=True).data)
+
+    @extend_schema(
+        tags=["Annonces"],
+        request={"multipart/form-data": AnnonceCreationSerializer},
+        responses={201: AnnonceSerializer, 401: ErreurSerializer, 422: ErreurSerializer},
+        summary="Publier une nouvelle annonce",
+    )
+    def post(self, request):
+        """Crée une annonce toujours soumise à la modération initiale."""
+        serializer = AnnonceCreationSerializer(
+            data=request.data,
+            context={"vendeur": request.user},
+        )
+        serializer.is_valid(raise_exception=True)
+        annonce = serializer.save()
+        return Response(AnnonceSerializer(annonce).data, status=status.HTTP_201_CREATED)
 
 
 class CategoriesAdministrationView(APIView):

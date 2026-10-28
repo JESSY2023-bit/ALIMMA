@@ -174,7 +174,7 @@ components:
 
     AnnonceCreateRequest:
       type: object
-      required: [titre, description, prix, categorie_id, ville, etat, type_vente]
+      required: [titre, description, prix, categorie_id, ville, etat, type_vente, images]
       properties:
         titre: { type: string, maxLength: 200 }
         description: { type: string }
@@ -195,6 +195,8 @@ components:
             date_limite: { type: string, format: date-time }
         images:
           type: array
+          minItems: 1
+          maxItems: 8
           items: { type: string, format: binary }
 
     Commande:
@@ -545,6 +547,7 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Annonce' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
         '422': { $ref: '#/components/responses/ValidationError' }
 
   /annonces/carte:

@@ -128,6 +128,10 @@ PROFILE_PHOTO_ALLOWED_MIME_TYPES = {
     "image/png",
     "image/webp",
 }
+# Les images d'annonce utilisent le même stockage interchangeable que les photos
+# de profil, avec des limites adaptées à des photos de produits.
+ANNONCE_IMAGE_MAX_SIZE = int(os.environ.get("ANNONCE_IMAGE_MAX_SIZE", 5 * 1024 * 1024))
+ANNONCE_IMAGE_ALLOWED_MIME_TYPES = {"image/jpeg", "image/png", "image/webp"}
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 # Django s'appuie sur le modèle métier ``utilisateurs`` et non sur auth.User.
 AUTH_USER_MODEL = "accounts.Utilisateur"
