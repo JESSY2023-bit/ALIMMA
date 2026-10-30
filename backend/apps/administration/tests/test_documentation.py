@@ -19,8 +19,19 @@ def test_generated_schema_declares_jwt_and_reference_tags():
     security = schema["components"]["securitySchemes"]["bearerAuth"]
     tags = {tag["name"] for tag in schema["tags"]}
 
-    assert security == {"type": "http", "scheme": "bearer", "bearerFormat": "JWT"}
+    assert security["type"] == "http"
+    assert security["scheme"] == "bearer"
+    assert security["bearerFormat"] == "JWT"
+    assert security["description"]
     assert {"Auth", "Annonces", "Administration"} <= tags
+
+
+def test_generated_schema_marks_login_and_refresh_as_public():
+    """Les deux routes publiques ne demandent pas de Bearer access token."""
+    schema = SchemaGenerator().get_schema(request=None, public=True)
+
+    assert schema["paths"]["/v1/auth/login"]["post"]["security"] == []
+    assert schema["paths"]["/v1/auth/refresh"]["post"]["security"] == []
 
 
 def test_comparison_command_can_fail_for_a_difference(tmp_path):

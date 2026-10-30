@@ -1,0 +1,120 @@
+
+#: src/i18n-keys.js
+msgid "nav.home"
+msgstr "Accueil"
+
+#: src/i18n-keys.js
+msgid "nav.pages"
+msgstr "Pages"
+
+#: src/i18n-keys.js
+msgid "nav.products"
+msgstr "Produits"
+
+#: src/i18n-keys.js
+msgid "nav.contact"
+msgstr "Contact"
+
+#: src/i18n-keys.js
+msgid "footer.categories.laptops"
+msgstr "Ordinateurs portables"
+
+#: src/i18n-keys.js
+msgid "footer.categories.pc"
+msgstr "PC & Ordinateurs"
+
+#: src/i18n-keys.js
+msgid "footer.categories.phones"
+msgstr "Téléphones portables"
+
+#: src/i18n-keys.js
+msgid "footer.categories.tablets"
+msgstr "Tablettes"
+
+#: src/i18n-keys.js
+msgid "footer.categories.gaming"
+msgstr "Jeux & VR"
+
+#: src/i18n-keys.js
+msgid "footer.categories.networks"
+msgstr "Réseaux"
+
+#: src/i18n-keys.js
+msgid "footer.categories.cameras"
+msgstr "Caméras"
+
+#: src/i18n-keys.js
+msgid "footer.categories.sounds"
+msgstr "Audio"
+
+#: src/i18n-keys.js
+msgid "footer.categories.office"
+msgstr "Bureau"
+
+#: src/i18n-keys.js
+msgid "footer.company.about"
+msgstr "À propos d'ALIMMA"
+
+#: src/i18n-keys.js
+msgid "footer.company.contact"
+msgstr "Contact"
+
+#: src/i18n-keys.js
+msgid "footer.company.career"
+msgstr "Carrière"
+
+#: src/i18n-keys.js
+msgid "footer.company.blog"
+msgstr "Blog"
+
+#: src/i18n-keys.js
+msgid "footer.company.sitemap"
+msgstr "Plan du site"
+
+#: src/i18n-keys.js
+msgid "footer.company.stores"
+msgstr "Nos magasins"
+
+#: src/i18n-keys.js
+msgid "footer.help.customer_service"
+msgstr "Service client"
+
+#: src/i18n-keys.js
+msgid "footer.help.policy"
+msgstr "Politique"
+
+#: src/i18n-keys.js
+msgid "footer.help.terms"
+msgstr "Conditions générales"
+
+#: src/i18n-keys.js
+msgid "footer.help.track_order"
+msgstr "Suivre ma commande"
+
+#: src/i18n-keys.js
+msgid "footer.help.faqs"
+msgstr "FAQ"
+
+#: src/i18n-keys.js
+msgid "footer.help.my_account"
+msgstr "Mon compte"
+
+#: src/i18n-keys.js
+msgid "footer.help.product_support"
+msgstr "Support produit"
+
+#: src/i18n-keys.js
+msgid "footer.partner.become_seller"
+msgstr "Devenir vendeur"
+
+#: src/i18n-keys.js
+msgid "footer.partner.affiliate"
+msgstr "Affiliation"
+
+#: src/i18n-keys.js
+msgid "footer.partner.advertise"
+msgstr "Publicité"
+
+#: src/i18n-keys.js
+msgid "footer.partner.partnership"
+msgstr "Partenariat"

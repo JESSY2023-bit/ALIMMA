@@ -2,7 +2,7 @@
 
 Ce document décrit l'installation locale du backend ALIMMA et le démarrage
 avec Docker Compose. L'API est une application Django 5/DRF utilisant
-PostgreSQL 16 avec PostGIS et Redis.
+PostgreSQL 16 et Redis.
 
 > `docs/schema.sql` est un document de conception. Ne l'exécutez pas : les
 > tables et extensions sont créées exclusivement par les migrations Django.
@@ -13,7 +13,7 @@ PostgreSQL 16 avec PostGIS et Redis.
 - Docker Desktop avec Docker Compose v2 ;
 - Python 3.12 et `pip` pour une exécution hors Docker ;
 - PostgreSQL n'est pas requis localement si Docker est utilisé ;
-- Node.js est requis seulement lorsque le projet frontend React est présent.
+- Node.js est requis pour exécuter le frontend React hors Docker.
 
 Vérifiez Docker :
 
@@ -117,7 +117,7 @@ docker compose --env-file infra/.env -f infra/docker-compose.yml down -v
 
 ## Démarrage hors Docker
 
-Lancez PostgreSQL/PostGIS et Redis, puis configurez `backend/.env` avec :
+Lancez PostgreSQL et Redis, puis configurez `backend/.env` avec :
 
 ```dotenv
 POSTGRES_HOST=127.0.0.1
@@ -162,11 +162,38 @@ après création d'un administrateur.
 
 ## Frontend
 
-Le fichier `infra/docker-compose.yml` référence un service `frontend` qui
-attend un dossier `frontend/`, son `Dockerfile` et son `.env`. Ce dossier
-n'est pas présent dans ce dépôt à ce jour. Démarrez donc explicitement
-`postgres`, `redis` et `backend` comme dans la commande ci-dessus, ou ajoutez
-le projet frontend avant d'exécuter un `docker compose up` complet.
+Le frontend React est disponible dans `frontend/`. Créez sa configuration
+locale puis lancez l'ensemble des services :
+
+```bash
+cp frontend/.env.example frontend/.env
+docker compose --env-file infra/.env -f infra/docker-compose.yml up -d --build
+```
+
+Le client est alors disponible sur `http://127.0.0.1:5173/`. En Docker,
+`VITE_API_URL=/v1` est relayé par le proxy Vite vers le service `backend` : le
+navigateur n'appelle donc pas directement le port 8000.
+
+## Lien frontend Vercel / backend Render
+
+Une URL `localhost` ne fonctionne que sur votre ordinateur. Dans Vercel,
+ouvrez **Project Settings** > **Environment Variables** et créez la variable
+suivante pour les environnements **Production** et **Preview** :
+
+```dotenv
+VITE_API_URL=https://votre-service.onrender.com/v1
+```
+
+Remplacez l'exemple par l'URL HTTPS publique exacte de votre Web Service
+Render. Après la sauvegarde, redéployez Vercel : les variables `VITE_*` sont
+intégrées au build, elles ne sont pas lues dynamiquement par le navigateur.
+
+Dans Render, définissez également `CORS_ALLOWED_ORIGINS` avec les origines
+Vercel autorisées, sans chemin `/v1`, par exemple :
+
+```dotenv
+CORS_ALLOWED_ORIGINS=https://alimma.vercel.app,https://alimma-git-develop-votre-compte.vercel.app
+```
 
 ## Préparation de la production
 
@@ -180,15 +207,15 @@ Avant un déploiement public, prévoyez au minimum :
    aléatoire de plus de 32 caractères et `DJANGO_ALLOWED_HOSTS` renseigné ;
 2. des mots de passe PostgreSQL forts, stockés dans un gestionnaire de secrets ;
 3. Redis non exposé au réseau public ;
-4. Gunicorn comme serveur WSGI et un reverse proxy TLS (Nginx, Caddy ou un
-   load balancer) ;
+4. Gunicorn comme serveur WSGI, fourni par le service backend Render ;
 5. des volumes persistants, des sauvegardes PostgreSQL testées et une politique
    de restauration ;
 6. `python manage.py migrate` exécuté à chaque livraison avant le démarrage des
    nouvelles instances ;
 7. `python manage.py check --deploy` et `python -m pytest` dans la pipeline CI ;
-8. l'alignement du proxy : l'API réelle est servie sous `/v1/`. Le fichier Nginx
-   actuel route `/api/`, il doit être adapté avant mise en production.
+8. déployez le backend sur Render et le frontend sur Vercel. Ces plateformes
+   gèrent le HTTPS et le routage public ; aucun Nginx autogéré ni Compose de
+   production n'est nécessaire.
 
 Après déploiement, vérifiez au minimum :
 

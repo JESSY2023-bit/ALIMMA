@@ -1,38 +1,130 @@
-// src/contexts/AuthContext.jsx
-import { createContext, useState, useEffect, useCallback } from 'react';
-import { api, getAccessToken, setTokens, clearTokens } from '../services/api';
 
-export const AuthContext = createContext(null);
+
+// import { useState, useEffect, useCallback } from 'react';
+// import { api, getAccessToken, setTokens, clearTokens } from '../services/api';
+// import { AuthContext } from './auth-context';
+
+
+// export function AuthProvider({ children }) {
+//   const [user, setUser] = useState(null);
+//   const [isLoading, setIsLoading] = useState(true);
+
+//   // Au démarrage : si on a un token, on essaie de charger le profil
+//   useEffect(() => {
+//     const bootstrap = async () => {
+//       const token = getAccessToken();
+//       if (!token) {
+//         setIsLoading(false);
+//         return;
+//       }
+//       try {
+//         const { data } = await api.get('/utilisateurs/moi');
+//         setUser(data);
+//       } catch {
+//         clearTokens();
+//       } finally {
+//         setIsLoading(false);
+//       }
+//     };
+//     bootstrap();
+//   }, []);
+
+//   // Appelé après un login / verify-otp réussi
+//   const login = useCallback((loginResponse) => {
+//     setTokens(loginResponse);
+//     if (loginResponse.utilisateur) setUser(loginResponse.utilisateur);
+//   }, []);
+
+//   // Appelé après un logout
+//   const logout = useCallback(() => {
+//     clearTokens();
+//     setUser(null);
+//   }, []);
+
+//   return (
+//     <AuthContext.Provider
+//       value={{
+//         user,
+//         isAuthenticated: !!user,
+//         isLoading,
+//         login,
+//         logout,
+//         setUser,
+//       }}
+//     >
+//       {children}
+//     </AuthContext.Provider>
+//   );
+// }
+
+
+import { useState, useEffect, useCallback } from 'react';
+import { api, getAccessToken, setTokens, clearTokens } from '../services/api';
+import { AuthContext } from './auth-context';
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Au démarrage : si on a un token, on essaie de charger le profil
-  useEffect(() => {
-    const bootstrap = async () => {
-      const token = getAccessToken();
-      if (!token) {
-        setIsLoading(false);
-        return;
-      }
-      try {
-        const { data } = await api.get('/utilisateurs/moi');
-        setUser(data);
-      } catch {
+  // Fonction réutilisable pour récupérer le profil
+  const fetchUserProfile = useCallback(async () => {
+    const token = getAccessToken();
+
+    if (!token) {
+      setUser(null);
+      setIsLoading(false);
+      return;
+    }
+
+    try {
+      const { data } = await api.get('/utilisateurs/moi');
+      setUser(data);
+    } catch (error) {
+      const status = error.response?.status;
+      console.error('[Auth] Erreur profil:', status, error.message);
+
+      // ✅ On ne supprime les tokens QUE si l'auth est vraiment invalide
+      if (status === 401 || status === 403) {
         clearTokens();
-      } finally {
-        setIsLoading(false);
+        setUser(null);
       }
-    };
-    bootstrap();
+      // Sinon (réseau, 500, timeout), on garde le token et on réessaiera plus tard
+    } finally {
+      setIsLoading(false);
+    }
   }, []);
 
+  // Au démarrage
+  useEffect(() => {
+    fetchUserProfile();
+  }, [fetchUserProfile]);
+
+  // ✅ Synchronisation entre onglets
+  useEffect(() => {
+    const handleStorageChange = (e) => {
+      // Si le token change dans un autre onglet, on recharge le profil
+      if (e.key === 'access_token' || e.key === 'refresh_token') {
+        setIsLoading(true);
+        fetchUserProfile();
+      }
+    };
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, [fetchUserProfile]);
+
   // Appelé après un login / verify-otp réussi
-  const login = useCallback((loginResponse) => {
-    setTokens(loginResponse);
-    if (loginResponse.utilisateur) setUser(loginResponse.utilisateur);
-  }, []);
+  const login = useCallback(
+    (loginResponse) => {
+      setTokens(loginResponse);
+      if (loginResponse.utilisateur) {
+        setUser(loginResponse.utilisateur);
+      } else {
+        // Si l'API ne renvoie pas l'utilisateur, on fetch le profil
+        fetchUserProfile();
+      }
+    },
+    [fetchUserProfile]
+  );
 
   // Appelé après un logout
   const logout = useCallback(() => {

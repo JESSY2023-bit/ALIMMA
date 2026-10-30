@@ -1,11 +1,7 @@
 openapi: 3.0.3
 info:
   title: ALIMMA API
-  description: >
-    API REST de la marketplace électronique ALIMMA (Cameroun).
-    Couvre l'authentification, le catalogue d'annonces, les commandes,
-    les paiements (Mobile Money / COD), la livraison, la modération
-    et l'administration.
+  description: "API REST de la marketplace électronique ALIMMA (Cameroun).\nCouvre l'authentification, le catalogue d'annonces, les commandes, les paiements (Mobile Money / COD), la livraison, la modération et l'administration.\n\n## Authentification\n\nFlux : inscription → login → access + refresh → appels avec `Authorization: Bearer <access>` → expiration → refresh → logout. L'access token expire après 30 minutes et le refresh token après 7 jours. Chaque refresh retourne une nouvelle paire et blackliste le refresh précédent. Le logout blackliste le refresh fourni et empêche tout renouvellement ultérieur."
   version: "1.0.0"
   contact:
     name: Équipe technique ALIMMA
@@ -39,6 +35,7 @@ components:
       type: http
       scheme: bearer
       bearerFormat: JWT
+      description: "Obtenez l'access token via `/auth/login`, puis envoyez-le dans `Authorization: Bearer <access_token>`. Dans Swagger UI, le bouton **Authorize** attend uniquement l'access token, sans le préfixe `Bearer`."
 
   schemas:
     Erreur:
@@ -61,6 +58,60 @@ components:
         note_moyenne: { type: number, format: float }
         code_parrainage: { type: string }
         date_inscription: { type: string, format: date-time }
+
+    ProfilUtilisateur:
+      description: Profil complet, accessible uniquement à son propriétaire authentifié.
+      type: object
+      properties:
+        id: { type: integer }
+        nom: { type: string }
+        email: { type: string, format: email, nullable: true }
+        telephone: { type: string }
+        role: { type: string, enum: [utilisateur, vendeur_pro, moderateur, livreur, administrateur] }
+        photo_url: { type: string, nullable: true }
+        note_moyenne: { type: number, format: float }
+        nb_avis: { type: integer }
+        points_parrainage: { type: integer }
+        code_parrainage: { type: string }
+        deux_fa_active: { type: boolean }
+        derniere_connexion: { type: string, format: date-time, nullable: true }
+        date_inscription: { type: string, format: date-time }
+
+    ProfilPublic:
+      description: Informations non sensibles visibles pour tout compte ayant au moins une annonce.
+      type: object
+      properties:
+        id: { type: integer }
+        nom: { type: string }
+        photo_url: { type: string, nullable: true }
+        note_moyenne: { type: number, format: float }
+        nb_avis: { type: integer }
+        date_inscription: { type: string, format: date-time }
+
+    ProfilUpdateJsonRequest:
+      type: object
+      properties:
+        nom: { type: string }
+        email: { type: string, format: email, nullable: true }
+        photo_url: { type: string, nullable: true }
+
+    ProfilUpdateMultipartRequest:
+      type: object
+      properties:
+        nom: { type: string }
+        email: { type: string, format: email, nullable: true }
+        photo_url: { type: string, nullable: true }
+        photo:
+          type: string
+          format: binary
+          description: Image JPEG, PNG ou WebP valide, 2 Mo maximum. Disponible uniquement en multipart/form-data.
+
+    ChangementMotDePasseRequest:
+      type: object
+      required: [ancien_mot_de_passe, nouveau_mot_de_passe]
+      properties:
+        ancien_mot_de_passe: { type: string, format: password }
+        nouveau_mot_de_passe: { type: string, format: password, minLength: 8 }
 
     InscriptionRequest:
       type: object
@@ -204,7 +255,12 @@ components:
 
   responses:
     Unauthorized:
-      description: Authentification requise ou invalide
+      description: |
+        Authentification requise ou invalide. Les codes réellement renvoyés sont :
+        - `NOT_AUTHENTICATED` : access token absent sur une route protégée.
+        - `TOKEN_NOT_VALID` : access token invalide ou expiré.
+        - `AUTHENTICATION_FAILED` : identifiants invalides, compte suspendu,
+          refresh expiré, invalide ou blacklisté.
       content:
         application/json:
           schema: { $ref: '#/components/schemas/Erreur' }
@@ -261,12 +317,20 @@ paths:
         content:
           application/json:
             schema: { $ref: '#/components/schemas/LoginRequest' }
+            example:
+              identifiant: alice@example.cm
+              password: mot-de-passe-solide
       responses:
         '200':
           description: OTP envoyé, ou connexion directe si 2FA désactivée
           content:
             application/json:
               schema: { $ref: '#/components/schemas/LoginResponse' }
+              example:
+                otp_requis: false
+                access_token: <access_token>
+                refresh_token: <refresh_token>
+                utilisateur: { id: 1, nom: Alice Ngono }
         '401': { $ref: '#/components/responses/Unauthorized' }
 
   /auth/verify-otp:
@@ -300,12 +364,19 @@ paths:
               type: object
               required: [refresh_token]
               properties: { refresh_token: { type: string } }
+            example: { refresh_token: <refresh_token> }
       responses:
         '200':
-          description: Nouveau token
+          description: Nouvelle paire JWT. Le refresh token fourni est blacklisté.
           content:
             application/json:
               schema: { $ref: '#/components/schemas/LoginResponse' }
+              example:
+                otp_requis: false
+                access_token: <nouvel_access_token>
+                refresh_token: <nouveau_refresh_token>
+                utilisateur: { id: 1, nom: Alice Ngono }
+        '401': { $ref: '#/components/responses/Unauthorized' }
 
   /auth/logout:
     post:
@@ -319,8 +390,10 @@ paths:
               type: object
               required: [refresh_token]
               properties: { refresh_token: { type: string } }
+            example: { refresh_token: <refresh_token> }
       responses:
         '204': { description: Déconnecté }
+        '401': { $ref: '#/components/responses/Unauthorized' }
 
   # ---------------------------------------------------------- UTILISATEURS
   /utilisateurs/moi:
@@ -332,25 +405,25 @@ paths:
           description: Profil utilisateur
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/Utilisateur' }
+              schema: { $ref: '#/components/schemas/ProfilUtilisateur' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
     patch:
       tags: [Utilisateurs]
       summary: Modifier son profil
       requestBody:
         content:
           application/json:
-            schema:
-              type: object
-              properties:
-                nom: { type: string }
-                email: { type: string }
-                photo_url: { type: string }
+            schema: { $ref: '#/components/schemas/ProfilUpdateJsonRequest' }
+          multipart/form-data:
+            schema: { $ref: '#/components/schemas/ProfilUpdateMultipartRequest' }
       responses:
         '200':
           description: Profil mis à jour
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/Utilisateur' }
+              schema: { $ref: '#/components/schemas/ProfilUtilisateur' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/ValidationError' }
 
   /utilisateurs/moi/mot-de-passe:
     put:
@@ -359,19 +432,17 @@ paths:
       requestBody:
         content:
           application/json:
-            schema:
-              type: object
-              required: [ancien_mot_de_passe, nouveau_mot_de_passe]
-              properties:
-                ancien_mot_de_passe: { type: string }
-                nouveau_mot_de_passe: { type: string }
+            schema: { $ref: '#/components/schemas/ChangementMotDePasseRequest' }
       responses:
         '204': { description: Mot de passe modifié }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/ValidationError' }
 
   /utilisateurs/{id}:
     get:
       tags: [Utilisateurs]
-      summary: Profil public d'un utilisateur / vendeur (note, badges, boutique)
+      summary: Profil public d'un compte ayant au moins une annonce (404 sinon)
+      security: []
       parameters:
         - name: id
           in: path
@@ -382,7 +453,7 @@ paths:
           description: Profil public
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/Utilisateur' }
+              schema: { $ref: '#/components/schemas/ProfilPublic' }
         '404': { $ref: '#/components/responses/NotFound' }
 
   # ------------------------------------------------------------- ANNONCES

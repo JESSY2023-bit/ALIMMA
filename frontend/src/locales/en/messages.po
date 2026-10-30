@@ -1,0 +1,252 @@
+msgid ""
+msgstr ""
+"POT-Creation-Date: 2026-10-16 18:51+0100\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"X-Generator: @lingui/cli\n"
+"Language: en\n"
+
+#: src/components/layout/TopBar.jsx
+msgid "24 h/24 et 7 j/7"
+msgstr "24/7"
+
+#: src/components/layout/NavBar.jsx
+msgid "Annuler"
+msgstr "Cancel"
+
+#: src/components/layout/NavBar.jsx
+msgid "BIENVENU"
+msgstr "WELCOME"
+
+#: src/components/layout/Footer.jsx
+msgid "Centre d'aide"
+msgstr "Help Center"
+
+#: src/components/layout/NavBar.jsx
+msgid "COMPTE"
+msgstr "ACCOUNT"
+
+#: src/components/layout/NavBar.jsx
+msgid "CONNEXION"
+msgstr "LOGIN"
+
+#: src/components/layout/Footer.jsx
+msgid "Drapeau"
+msgstr "Flag"
+
+#: src/components/layout/Footer.jsx
+msgid "Entreprise"
+msgstr "Company"
+
+#: src/components/layout/NavBar.jsx
+msgid "INSCRIPTION"
+msgstr "REGISTER"
+
+#: src/components/layout/TopBar.jsx
+msgid "Ligne d'assistance "
+msgstr "Support line "
+
+#: src/components/layout/Footer.jsx
+msgid "Ligne d'assistance 24 h/24 et 7 j/7"
+msgstr "24/7 support line"
+
+#: src/components/layout/NavBar.jsx
+msgid "Mes commandes"
+msgstr "My orders"
+
+#: src/components/layout/NavBar.jsx
+msgid "Mes favoris"
+msgstr "My favorites"
+
+#: src/components/layout/NavBar.jsx
+msgid "Mon compte"
+msgstr "My account"
+
+#: src/components/layout/NavBar.jsx
+msgid "Oui, me déconnecter"
+msgstr "Yes, log me out"
+
+#: src/components/layout/NavBar.jsx
+msgid "PANIER"
+msgstr "CART"
+
+#: src/components/layout/NavBar.jsx
+msgid "Paramètres"
+msgstr "Settings"
+
+#: src/components/layout/Footer.jsx
+msgid "Partenaires"
+msgstr "Partners"
+
+#: src/components/layout/NavBar.jsx
+msgid "Se déconnecter"
+msgstr "Log out"
+
+#: src/components/layout/NavBar.jsx
+msgid "Se déconnecter ?"
+msgstr "Log out?"
+
+#: src/components/layout/TopBar.jsx
+msgid "Suivre la commande"
+msgstr "Track order"
+
+#: src/components/layout/Footer.jsx
+msgid "Top catégories"
+msgstr "Top Categories"
+
+#: src/components/layout/Footer.jsx
+msgid "Tous droits réservés"
+msgstr "All rights reserved"
+
+#: src/components/layout/NavBar.jsx
+msgid "Utilisateur"
+msgstr "User"
+
+#: src/components/layout/TopBar.jsx
+msgid "Vendez sur"
+msgstr "Sell on"
+
+#: src/components/layout/NavBar.jsx
+msgid "Voulez-vous vraiment vous déconnecter de votre compte ALIMMA ?"
+msgstr "Do you really want to log out of your ALIMMA account?"
+
+#: src/components/layout/NavBar.jsx
+msgid "nav.home"
+msgstr "Home"
+
+#: src/components/layout/NavBar.jsx
+msgid "nav.pages"
+msgstr "Pages"
+
+#: src/components/layout/NavBar.jsx
+msgid "nav.products"
+msgstr "Products"
+
+#: src/components/layout/NavBar.jsx
+msgid "nav.contact"
+msgstr "Contact"
+
+#: src/components/layout/Footer.jsx
+msgid "footer.categories.laptops"
+msgstr "Laptops"
+
+#: src/components/layout/Footer.jsx
+msgid "footer.categories.pc"
+msgstr "PC & Computers"
+
+#: src/components/layout/Footer.jsx
+msgid "footer.categories.phones"
+msgstr "Cell Phones"
+
+#: src/components/layout/Footer.jsx
+msgid "footer.categories.tablets"
+msgstr "Tablets"
+
+#: src/components/layout/Footer.jsx
+msgid "footer.categories.gaming"
+msgstr "Gaming & VR"
+
+#: src/components/layout/Footer.jsx
+msgid "footer.categories.networks"
+msgstr "Networks"
+
+#: src/components/layout/Footer.jsx
+msgid "footer.categories.cameras"
+msgstr "Cameras"
+
+#: src/components/layout/Footer.jsx
+msgid "footer.categories.sounds"
+msgstr "Sounds"
+
+#: src/components/layout/Footer.jsx
+msgid "footer.categories.office"
+msgstr "Office"
+
+#: src/components/layout/Footer.jsx
+msgid "footer.company.about"
+msgstr "About ALIMMA"
+
+#: src/components/layout/Footer.jsx
+msgid "footer.company.contact"
+msgstr "Contact"
+
+#: src/components/layout/Footer.jsx
+msgid "footer.company.career"
+msgstr "Career"
+
+#: src/components/layout/Footer.jsx
+msgid "footer.company.blog"
+msgstr "Blog"
+
+#: src/components/layout/Footer.jsx
+msgid "footer.company.sitemap"
+msgstr "Sitemap"
+
+#: src/components/layout/Footer.jsx
+msgid "footer.company.stores"
+msgstr "Store Locations"
+
+#: src/components/layout/Footer.jsx
+msgid "footer.help.customer_service"
+msgstr "Customer Service"
+
+#: src/components/layout/Footer.jsx
+msgid "footer.help.policy"
+msgstr "Policy"
+
+#: src/components/layout/Footer.jsx
+msgid "footer.help.terms"
+msgstr "Terms & Conditions"
+
+#: src/components/layout/Footer.jsx
+msgid "footer.help.track_order"
+msgstr "Track Order"
+
+#: src/components/layout/Footer.jsx
+msgid "footer.help.faqs"
+msgstr "FAQs"
+
+#: src/components/layout/Footer.jsx
+msgid "footer.help.my_account"
+msgstr "My Account"
+
+#: src/components/layout/Footer.jsx
+msgid "footer.help.product_support"
+msgstr "Product Support"
+
+#: src/components/layout/Footer.jsx
+msgid "footer.partner.become_seller"
+msgstr "Become Seller"
+
+#: src/components/layout/Footer.jsx
+msgid "footer.partner.affiliate"
+msgstr "Affiliate"
+
+#: src/components/layout/Footer.jsx
+msgid "footer.partner.advertise"
+msgstr "Advertise"
+
+#: src/components/layout/Footer.jsx
+msgid "footer.partner.partnership"
+msgstr "Partnership"
+
+#: src/components/layout/SearchBar.jsx
+msgid "Toutes les catégories"
+msgstr "All categories"
+
+#: src/components/layout/SearchBar.jsx
+msgid "Alimentation"
+msgstr "Food"
+
+#: src/components/layout/SearchBar.jsx
+msgid "Électronique"
+msgstr "Electronics"
+
+#: src/components/layout/SearchBar.jsx
+msgid "Rechercher quoi que ce soit..."
+msgstr "Search for anything..."
+
+#: src/components/layout/SearchBar.jsx
+msgid "Rechercher"
+msgstr "Search"

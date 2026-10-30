@@ -11,7 +11,6 @@
 -- =====================================================================
 
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-CREATE EXTENSION IF NOT EXISTS "postgis";        -- requêtes spatiales (recherche par carte)
 CREATE EXTENSION IF NOT EXISTS "pg_trgm";        -- recherche floue sur titres/descriptions
 
 -- =====================================================================
@@ -138,7 +137,8 @@ CREATE TABLE annonces (
     etat                etat_produit NOT NULL DEFAULT 'occasion',
     ville               VARCHAR(100) NOT NULL,
     quartier            VARCHAR(100),
-    localisation        GEOGRAPHY(POINT, 4326),   -- pour la recherche par carte (PostGIS)
+    latitude            DECIMAL(9,6),
+    longitude           DECIMAL(9,6),
     statut              statut_annonce NOT NULL DEFAULT 'en_attente_moderation',
     nb_vues             INTEGER DEFAULT 0,
     date_publication    TIMESTAMPTZ,
@@ -149,7 +149,7 @@ CREATE TABLE annonces (
 CREATE INDEX idx_annonces_vendeur ON annonces(vendeur_id);
 CREATE INDEX idx_annonces_categorie ON annonces(categorie_id);
 CREATE INDEX idx_annonces_statut ON annonces(statut);
-CREATE INDEX idx_annonces_localisation ON annonces USING GIST(localisation);
+CREATE INDEX idx_annonces_coordinates ON annonces(latitude, longitude);
 CREATE INDEX idx_annonces_titre_trgm ON annonces USING GIN (titre gin_trgm_ops);
 
 CREATE TABLE annonce_images (

@@ -3,6 +3,8 @@
 
 // src/App.jsx
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+
+
 import MainLayout from "./components/layout/MainLayout";
 import ProtectedRoute from "./components/ProtectedRoute";
 import PublicOnlyRoute from "./components/PublicOnlyRoute";
@@ -10,7 +12,7 @@ import Home from "./pages/Home";
 import Register from "./pages/Register";
 import Login from "./pages/Login";
 import NotFound from "./pages/NotFound";
-
+import Profile from "./pages/Profile";
 export default function App() {
   return (
     <BrowserRouter>
@@ -30,7 +32,7 @@ export default function App() {
           {/* Routes protégées (nécessitent d'être connecté) --- */}
           <Route element={<ProtectedRoute />}>
             {/* Exemple : décommentez au fur et à mesure */}
-            {/* <Route path="/profile" element={<Profile />} /> */}
+             <Route path="/profile" element={<Profile />} /> 
             {/* <Route path="/mes-annonces" element={<MesAnnonces />} /> */}
             {/* <Route path="/favoris" element={<Favoris />} /> */}
             {/* <Route path="/commandes" element={<Commandes />} /> */}

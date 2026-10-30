@@ -1,7 +1,16 @@
 // src/services/api.js
 import axios from 'axios';
 
-const API_BASE_URL = 'https://alimma.onrender.com/v1';
+
+
+// En local, Vite relaie /v1 vers Django. En production, Vercel injecte
+// VITE_API_URL avec l'URL HTTPS publique du service Render.
+//const VITE_API_URL = '/v1';
+
+const API_BASE_URL = (
+  import.meta.env.VITE_API_URL || DEFAULT_API_BASE_URL
+).replace(/\/$/, '');
+
 
 export const api = axios.create({
   baseURL: API_BASE_URL,
@@ -118,4 +127,6 @@ api.interceptors.response.use(
 
     return Promise.reject(error);
   }
+
 );
+
