@@ -1,6 +1,6 @@
 services:
   postgres:
-    image: postgis/postgis:16-3.5-alpine
+    image: postgres:16-alpine
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-alimma}
       POSTGRES_USER: ${POSTGRES_USER:-alimma}
@@ -29,8 +29,18 @@ services:
       dockerfile: Dockerfile
     env_file:
       - ../backend/.env
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-alimma}
+      POSTGRES_USER: ${POSTGRES_USER:-alimma}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-alimma}
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_SSLMODE: prefer
     volumes:
       - ../backend:/app
+      # Le contrat est monté en lecture seule pour permettre la comparaison
+      # OpenAPI depuis le conteneur sans rendre la documentation modifiable.
+      - ../docs:/docs:ro
     ports:
       - "8000:8000"
     depends_on:
@@ -59,3 +69,4 @@ services:
 volumes:
   postgres_data:
   redis_data:
+  media_data:

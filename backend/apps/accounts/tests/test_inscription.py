@@ -56,7 +56,9 @@ def test_inscription_refuse_un_email_deja_utilise(client):
 
 @pytest.mark.django_db
 def test_inscription_refuse_un_mot_de_passe_trop_court(client):
-    response = client.post(URL, inscription_payload(password="court"), content_type="application/json")
+    response = client.post(
+        URL, inscription_payload(password="court"), content_type="application/json"
+    )
 
     assert response.status_code == 422
     assert Utilisateur.objects.count() == 0
@@ -64,7 +66,11 @@ def test_inscription_refuse_un_mot_de_passe_trop_court(client):
 
 @pytest.mark.django_db
 def test_inscription_refuse_un_telephone_mal_formate(client):
-    response = client.post(URL, inscription_payload(telephone="+33670000000"), content_type="application/json")
+    response = client.post(
+        URL,
+        inscription_payload(telephone="+33670000000"),
+        content_type="application/json",
+    )
 
     assert response.status_code == 422
     assert Utilisateur.objects.count() == 0

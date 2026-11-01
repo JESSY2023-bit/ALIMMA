@@ -2,9 +2,9 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-# Dépendances système nécessaires à psycopg2 (driver PostgreSQL) et PostGIS
+# Dépendances système de compilation et du driver PostgreSQL.
 RUN apt-get update && apt-get install -y \
-    build-essential libpq-dev gdal-bin \
+    build-essential libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements/ requirements/
