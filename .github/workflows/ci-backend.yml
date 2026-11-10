@@ -4,9 +4,13 @@ on:
   push:
     paths:
       - "backend/**"
+      - "infra/**"
+      - ".github/workflows/ci-backend.yml"
   pull_request:
     paths:
       - "backend/**"
+      - "infra/**"
+      - ".github/workflows/ci-backend.yml"
 
 jobs:
   test:
@@ -17,7 +21,9 @@ jobs:
         working-directory: backend
     services:
       postgres:
-        image: postgres:16-alpine
+        # La migration catalogue.0004 active l'extension PostGIS : l'image
+        # PostgreSQL standard ne contient pas ses fichiers système.
+        image: postgis/postgis:16-3.5-alpine
         env:
           POSTGRES_DB: alimma_test
           POSTGRES_USER: alimma
