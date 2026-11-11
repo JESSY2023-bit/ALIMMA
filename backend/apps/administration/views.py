@@ -78,6 +78,9 @@ class SuspensionUtilisateurView(APIView):
     """Bascule le statut d'un compte sans permettre l'auto-suspension."""
 
     permission_classes = [IsAuthenticated, EstAdministrateur]
+    # APIView ne déduit pas automatiquement ce serializer ; cette déclaration
+    # est réservée à drf-spectacular et ne modifie pas la réponse réelle.
+    serializer_class = UtilisateurAdministrationSerializer
 
     @extend_schema(
         tags=["Administration"],

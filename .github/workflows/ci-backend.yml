@@ -17,7 +17,9 @@ jobs:
         working-directory: backend
     services:
       postgres:
-        image: postgres:16-alpine
+        # Les migrations du catalogue utilisent l'extension PostGIS pour la
+        # colonne GEOGRAPHY(POINT,4326) : l'image PostgreSQL standard ne l'a pas.
+        image: postgis/postgis:16-3.5-alpine
         env:
           POSTGRES_DB: alimma_test
           POSTGRES_USER: alimma

@@ -34,6 +34,15 @@ def test_generated_schema_marks_login_and_refresh_as_public():
     assert schema["paths"]["/v1/auth/refresh"]["post"]["security"] == []
 
 
+def test_generated_schema_types_categories_et_images_explicitement():
+    """Les champs calculés restent des tableaux dans Swagger, pas des chaînes."""
+    schema = SchemaGenerator().get_schema(request=None, public=True)
+    components = schema["components"]["schemas"]
+
+    assert components["Categorie"]["properties"]["enfants"]["type"] == "array"
+    assert components["Annonce"]["properties"]["images"]["type"] == "array"
+
+
 def test_comparison_command_can_fail_for_a_difference(tmp_path):
     """Le mode CI retourne une erreur lorsqu'un contrat diverge."""
     reference = tmp_path / "reference.yaml"

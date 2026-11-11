@@ -24,7 +24,14 @@ def api_exception_handler(exc, context):
     # Le contrat ALIMMA impose néanmoins 401 pour des identifiants ou tokens invalides.
     if isinstance(exc, AuthenticationFailed):
         response.status_code = 401
-    detail = response.data.get("detail", response.data)
+    # DRF peut retourner un dictionnaire (erreur de champ) ou une liste
+    # (ValidationError construite depuis une simple chaîne). Les deux formes
+    # doivent être normalisées sans provoquer une erreur 500.
+    detail = (
+        response.data.get("detail", response.data)
+        if isinstance(response.data, dict)
+        else response.data
+    )
     if response.status_code == 400:
         # Le contrat ALIMMA expose les erreurs de validation en 422.
         response.status_code = 422

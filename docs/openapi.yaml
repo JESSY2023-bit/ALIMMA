@@ -163,14 +163,60 @@ components:
         quartier: { type: string, nullable: true }
         latitude: { type: number, format: float, nullable: true }
         longitude: { type: number, format: float, nullable: true }
+        localisation:
+          type: object
+          nullable: true
+          description: Point géographique de l'annonce, lorsque les coordonnées sont renseignées.
+          properties:
+            latitude: { type: number, format: float }
+            longitude: { type: number, format: float }
         statut:
           type: string
           enum: [en_attente_moderation, active, en_pause, rejetee, vendue, expiree]
         images:
           type: array
           items: { type: string }
+        vendeur_nom: { type: string }
+        vendeur_note_moyenne: { type: number, format: float }
         nb_vues: { type: integer }
         date_publication: { type: string, format: date-time, nullable: true }
+        date_expiration: { type: string, format: date-time, nullable: true }
+
+    VendeurAnnonce:
+      type: object
+      properties:
+        id: { type: integer }
+        nom: { type: string }
+        photo_url: { type: string, nullable: true }
+        note_moyenne: { type: number, format: float }
+        nb_avis: { type: integer }
+
+    CategorieResume:
+      type: object
+      properties:
+        id: { type: integer }
+        nom: { type: string }
+        slug: { type: string }
+        parent_id: { type: integer, nullable: true }
+        icone_url: { type: string, nullable: true }
+        ordre_affichage: { type: integer }
+
+    AnnonceDetail:
+      allOf:
+        - $ref: '#/components/schemas/Annonce'
+        - type: object
+          properties:
+            categorie: { $ref: '#/components/schemas/CategorieResume' }
+            vendeur: { $ref: '#/components/schemas/VendeurAnnonce' }
+
+    ListeAnnonces:
+      type: object
+      required: [data, pagination]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/Annonce' }
+        pagination: { $ref: '#/components/schemas/Pagination' }
 
     AnnonceCreateRequest:
       type: object
@@ -198,6 +244,37 @@ components:
           minItems: 1
           maxItems: 8
           items: { type: string, format: binary }
+
+    AnnonceUpdateRequest:
+      type: object
+      description: Corps multipart/form-data. Les images ajoutées et supprimées sont optionnelles ; une annonce doit toujours conserver entre 1 et 8 images.
+      properties:
+        titre: { type: string, maxLength: 200 }
+        description: { type: string }
+        prix: { type: number, minimum: 0 }
+        categorie_id: { type: integer }
+        ville: { type: string }
+        quartier: { type: string, nullable: true }
+        latitude: { type: number, nullable: true }
+        longitude: { type: number, nullable: true }
+        etat: { type: string, enum: [neuf, occasion] }
+        type_vente: { type: string, enum: [fixe, enchere] }
+        images_ajoutees:
+          type: array
+          maxItems: 8
+          items: { type: string, format: binary }
+        images_supprimees:
+          type: array
+          items: { type: integer }
+
+    DecisionModerationRequest:
+      type: object
+      required: [decision]
+      properties:
+        decision: { type: string, enum: [valider, rejeter] }
+        motif:
+          type: string
+          description: Obligatoire lorsque decision vaut rejeter.
 
     Commande:
       type: object
@@ -259,7 +336,7 @@ components:
         ordre_affichage: { type: integer }
         enfants:
           type: array
-          items: { $ref: '#/components/schemas/Categorie' }
+          items: { $ref: '#/components/schemas/CategorieResume' }
 
     CategorieEcritureRequest:
       type: object
@@ -300,6 +377,11 @@ components:
           schema: { $ref: '#/components/schemas/Erreur' }
     Forbidden:
       description: Rôle insuffisant pour cette action
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Erreur' }
+    Conflict:
+      description: L'action est incompatible avec l'état actuel de la ressource.
       content:
         application/json:
           schema: { $ref: '#/components/schemas/Erreur' }
@@ -499,6 +581,10 @@ paths:
       parameters:
         - { $ref: '#/components/parameters/PageParam' }
         - { $ref: '#/components/parameters/ParPageParam' }
+        - name: tri
+          in: query
+          schema: { type: string, enum: [date_publication, prix_asc, prix_desc], default: date_publication }
+          description: Tri décroissant par date de publication, ou prix croissant/décroissant.
         - name: q
           in: query
           schema: { type: string }
@@ -526,13 +612,8 @@ paths:
           description: Liste paginée d'annonces
           content:
             application/json:
-              schema:
-                type: object
-                properties:
-                  data:
-                    type: array
-                    items: { $ref: '#/components/schemas/Annonce' }
-                  pagination: { $ref: '#/components/schemas/Pagination' }
+              schema: { $ref: '#/components/schemas/ListeAnnonces' }
+        '422': { $ref: '#/components/responses/ValidationError' }
     post:
       tags: [Annonces]
       summary: Publier une nouvelle annonce (statut initial "en_attente_moderation")
@@ -580,6 +661,11 @@ paths:
     get:
       tags: [Annonces]
       summary: Détail d'une annonce (incrémente nb_vues)
+      description: |
+        L'annonce active est publique. Une annonce non active est visible
+        uniquement par son vendeur, un modérateur ou un administrateur ; les
+        autres appels reçoivent 404. Le compteur est dédupliqué par adresse IP
+        pendant 24 heures.
       security: []
       parameters:
         - { name: id, in: path, required: true, schema: { type: integer } }
@@ -588,7 +674,7 @@ paths:
           description: Détail de l'annonce
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/Annonce' }
+              schema: { $ref: '#/components/schemas/AnnonceDetail' }
         '404': { $ref: '#/components/responses/NotFound' }
     patch:
       tags: [Annonces]
@@ -597,22 +683,30 @@ paths:
         - { name: id, in: path, required: true, schema: { type: integer } }
       requestBody:
         content:
-          application/json:
-            schema: { $ref: '#/components/schemas/AnnonceCreateRequest' }
+          multipart/form-data:
+            schema: { $ref: '#/components/schemas/AnnonceUpdateRequest' }
       responses:
         '200':
           description: Annonce mise à jour
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Annonce' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/ValidationError' }
     delete:
       tags: [Annonces]
-      summary: Supprimer une annonce
+      summary: Supprimer logiquement une annonce (statut ``expiree``)
       parameters:
         - { name: id, in: path, required: true, schema: { type: integer } }
       responses:
         '204': { description: Supprimée }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
 
   /annonces/{id}/pause:
     post:
@@ -621,7 +715,30 @@ paths:
       parameters:
         - { name: id, in: path, required: true, schema: { type: integer } }
       responses:
-        '200': { description: Statut modifié }
+        '200':
+          description: Statut basculé entre ``active`` et ``en_pause``
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Annonce' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /utilisateurs/moi/annonces:
+    get:
+      tags: [Annonces]
+      summary: Lister mes annonces
+      description: Retourne toutes les annonces du compte authentifié, quel que soit leur statut, avec ``nb_vues``.
+      responses:
+        '200':
+          description: Annonces du vendeur connecté
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Annonce' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
 
   /annonces/{id}/commentaires:
     get:
@@ -1002,7 +1119,15 @@ paths:
       tags: [Modération]
       summary: Lister les annonces en attente de modération
       responses:
-        '200': { description: File d'attente de modération }
+        '200':
+          description: File triée de la plus ancienne annonce à la plus récente
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Annonce' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
 
   /moderation/annonces/{id}/decision:
     post:
@@ -1011,16 +1136,21 @@ paths:
       parameters:
         - { name: id, in: path, required: true, schema: { type: integer } }
       requestBody:
+        required: true
         content:
           application/json:
-            schema:
-              type: object
-              required: [decision]
-              properties:
-                decision: { type: string, enum: [valider, rejeter] }
-                motif: { type: string }
+            schema: { $ref: '#/components/schemas/DecisionModerationRequest' }
       responses:
-        '200': { description: Décision appliquée }
+        '200':
+          description: Décision appliquée
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Annonce' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/ValidationError' }
 
   /moderation/signalements:
     get:

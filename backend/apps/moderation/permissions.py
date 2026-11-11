@@ -2,7 +2,7 @@
 from rest_framework.permissions import BasePermission
 
 
-class IsModerator(BasePermission):
+class EstModerateurOuAdmin(BasePermission):
     """Autorise les modérateurs et les administrateurs."""
 
     message = "Cette action requiert le rôle modérateur."
@@ -12,3 +12,7 @@ class IsModerator(BasePermission):
         return bool(request.user and request.user.is_authenticated) and getattr(
             request.user, "role", None
         ) in {"moderateur", "administrateur"}
+
+
+# Le nom historique est conservé afin de ne pas rompre les imports existants.
+IsModerator = EstModerateurOuAdmin

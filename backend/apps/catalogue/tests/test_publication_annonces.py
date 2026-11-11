@@ -2,6 +2,7 @@
 from io import BytesIO
 
 import pytest
+from django.core.cache import cache
 from django.core.files.uploadedfile import SimpleUploadedFile
 from PIL import Image
 from rest_framework_simplejwt.tokens import AccessToken
@@ -145,6 +146,9 @@ def test_creation_sans_coordonnees_et_annonce_non_validee_invisible(
     client, vendeur, categorie, settings, tmp_path
 ):
     settings.MEDIA_ROOT = tmp_path
+    # Les tests de catalogue peuvent partager Redis : cette assertion vérifie
+    # le résultat courant, et non une première page mise en cache antérieure.
+    cache.clear()
     creation = client.post(URL, donnees_annonce(categorie), **auth_headers(vendeur))
     liste = client.get(URL)
 
@@ -152,4 +156,10 @@ def test_creation_sans_coordonnees_et_annonce_non_validee_invisible(
     assert creation.status_code == 201
     assert annonce.localisation is None
     assert liste.status_code == 200
-    assert liste.json() == []
+    assert liste.json()["data"] == []
+    assert liste.json()["pagination"] == {
+        "page": 1,
+        "par_page": 20,
+        "total": 0,
+        "total_pages": 1,
+    }
