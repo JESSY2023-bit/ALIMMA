@@ -267,6 +267,39 @@ components:
           type: array
           items: { type: integer }
 
+    PanierArticleRequest:
+      type: object
+      required: [annonce_id, quantite]
+      properties:
+        annonce_id: { type: integer }
+        quantite: { type: integer, minimum: 1 }
+
+    PanierQuantiteRequest:
+      type: object
+      required: [quantite]
+      properties:
+        quantite: { type: integer, minimum: 1 }
+
+    PanierArticle:
+      type: object
+      properties:
+        annonce: { $ref: '#/components/schemas/Annonce' }
+        quantite: { type: integer }
+        prix_unitaire: { type: number }
+        total_ligne: { type: number }
+
+    Panier:
+      type: object
+      required: [articles, sous_total, frais_livraison, total]
+      properties:
+        articles:
+          type: array
+          items: { $ref: '#/components/schemas/PanierArticle' }
+        sous_total: { type: number }
+        frais_livraison: { type: number }
+        total: { type: number }
+        message: { type: string }
+
     DecisionModerationRequest:
       type: object
       required: [decision]
@@ -791,6 +824,73 @@ paths:
         '200': { description: "Liste des offres, triées par montant décroissant" }
 
   # ------------------------------------------------------ PANIER & COMMANDES
+  /panier:
+    get:
+      tags: [Panier & Commandes]
+      summary: Consulter mon panier
+      responses:
+        '200':
+          description: Panier avec prix recalculés depuis les annonces actives
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Panier' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    delete:
+      tags: [Panier & Commandes]
+      summary: Vider mon panier
+      responses:
+        '204': { description: Panier vidé }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /panier/articles:
+    post:
+      tags: [Panier & Commandes]
+      summary: Ajouter un article au panier
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PanierArticleRequest' }
+      responses:
+        '200':
+          description: Panier mis à jour
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Panier' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+
+  /panier/articles/{annonce_id}:
+    patch:
+      tags: [Panier & Commandes]
+      summary: Modifier la quantité d'un article
+      parameters:
+        - { name: annonce_id, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PanierQuantiteRequest' }
+      responses:
+        '200':
+          description: Panier mis à jour
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Panier' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+    delete:
+      tags: [Panier & Commandes]
+      summary: Retirer un article du panier
+      parameters:
+        - { name: annonce_id, in: path, required: true, schema: { type: integer } }
+      responses:
+        '204': { description: Article retiré }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
   /commandes:
     get:
       tags: [Panier & Commandes]

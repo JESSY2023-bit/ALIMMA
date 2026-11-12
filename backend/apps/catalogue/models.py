@@ -2,7 +2,7 @@
 from decimal import Decimal
 
 from django.db import models
-from django.contrib.postgres.indexes import GistIndex
+from django.contrib.postgres.indexes import GinIndex, GistIndex
 from django.utils import timezone
 
 
@@ -147,10 +147,18 @@ class Annonce(models.Model):
             models.Index(fields=["vendeur"], name="idx_annonces_vendeur"),
             models.Index(fields=["categorie"], name="idx_annonces_categorie"),
             models.Index(fields=["statut"], name="idx_annonces_statut"),
+            # La liste publique exécute systématiquement ce filtre et ce tri.
+            # Cet index évite un tri coûteux lorsque le catalogue grandit.
+            models.Index(
+                fields=["statut", "-date_publication"],
+                name="idx_ann_statut_pub",
+            ),
             models.Index(
                 fields=["latitude", "longitude"],
                 name="idx_annonces_coordinates",
             ),
+            # La recherche floue couvre aussi les descriptions de produits.
+            GinIndex(fields=["description"], name="idx_ann_desc_trgm", opclasses=["gin_trgm_ops"]),
             GistIndex(fields=["localisation"], name="idx_annonces_localisation_gist"),
         ]
 

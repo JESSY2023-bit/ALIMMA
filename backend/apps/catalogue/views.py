@@ -3,7 +3,8 @@ from decimal import Decimal, InvalidOperation
 
 from django.core.cache import cache
 from django.core.paginator import EmptyPage, Paginator
-from django.db.models import F, Q
+from django.db.models import CharField, F, Q, TextField
+from django.contrib.postgres.lookups import TrigramSimilar
 from drf_spectacular.utils import extend_schema
 from rest_framework import status
 from rest_framework.exceptions import APIException, NotFound, PermissionDenied, ValidationError
@@ -26,6 +27,12 @@ from .serializers import (
     ListeAnnoncesSerializer,
 )
 
+# Django ne déclare pas automatiquement ce lookup pour les champs texte.
+# Son enregistrement rend disponible l'opérateur PostgreSQL ``%``, qui peut
+# utiliser l'index GIN ``idx_annonces_titre_trgm`` de la migration initiale.
+CharField.register_lookup(TrigramSimilar)
+TextField.register_lookup(TrigramSimilar)
+
 
 # Seule la première page du tri par défaut est mise en cache. Les autres pages
 # restent suffisamment variables pour être consultées directement en base.
@@ -35,6 +42,69 @@ PREMIERE_PAGE_ANNONCES_CACHE_KEY = "catalogue:annonces:actives:premiere-page"
 def invalider_cache_annonces_publiques():
     """Invalide la liste publique mémorisée après une mutation d'annonce."""
     cache.delete(PREMIERE_PAGE_ANNONCES_CACHE_KEY)
+
+
+def filtrer_annonces_publiques(queryset, params):
+    """Applique les filtres combinables à un queryset déjà limité aux annonces actives.
+
+    La recherche trigramme exploite l'extension ``pg_trgm`` et son index GIN
+    sur le titre. Le ``icontains`` conserve en parallèle les correspondances
+    exactes dans le titre comme dans la description.
+    """
+    q = params.get("q")
+    categorie_id = params.get("categorie_id")
+    ville = params.get("ville")
+    prix_min = params.get("prix_min")
+    prix_max = params.get("prix_max")
+    etat = params.get("etat")
+    type_vente = params.get("type_vente")
+
+    filtres_actifs = any(
+        valeur not in (None, "")
+        for valeur in (q, categorie_id, ville, prix_min, prix_max, etat, type_vente)
+    )
+    if q:
+        # ``trigram_similar`` s'appuie sur l'opérateur PostgreSQL ``%``,
+        # compatible avec l'index GIN ``idx_annonces_titre_trgm``.
+        queryset = queryset.filter(
+            Q(titre__icontains=q)
+            | Q(description__icontains=q)
+            | Q(titre__trigram_similar=q)
+            | Q(description__trigram_similar=q)
+        )
+    if categorie_id:
+        try:
+            categorie = Categorie.objects.get(pk=int(categorie_id))
+        except (TypeError, ValueError) as exc:
+            raise ValidationError("categorie_id doit être un entier.") from exc
+        except Categorie.DoesNotExist as exc:
+            raise ValidationError("La catégorie indiquée n'existe pas.") from exc
+        # Un parent inclut ses enfants directs ; le modèle limite déjà
+        # l'arborescence à ces deux niveaux.
+        categories = [categorie.id]
+        if categorie.parent_id is None:
+            categories.extend(categorie.enfants.values_list("id", flat=True))
+        queryset = queryset.filter(categorie_id__in=categories)
+    if ville:
+        queryset = queryset.filter(ville__iexact=ville)
+    try:
+        if prix_min:
+            queryset = queryset.filter(prix__gte=Decimal(prix_min))
+        if prix_max:
+            queryset = queryset.filter(prix__lte=Decimal(prix_max))
+    except (InvalidOperation, TypeError) as exc:
+        raise ValidationError("prix_min et prix_max doivent être des nombres.") from exc
+    if prix_min and prix_max and Decimal(prix_min) > Decimal(prix_max):
+        raise ValidationError("prix_min ne peut pas être supérieur à prix_max.")
+    if etat:
+        if etat not in Annonce.Etat.values:
+            raise ValidationError("etat doit valoir neuf ou occasion.")
+        queryset = queryset.filter(etat=etat)
+    if type_vente:
+        if type_vente not in Annonce.TypeVente.values:
+            raise ValidationError("type_vente doit valoir fixe ou enchere.")
+        queryset = queryset.filter(type_vente=type_vente)
+    return queryset, filtres_actifs
 
 
 class ConflitCategorie(APIException):
@@ -93,49 +163,7 @@ class AnnoncesView(APIView):
             raise ValidationError("tri doit valoir date_publication, prix_asc ou prix_desc.")
 
         annonces = Annonce.objects.filter(statut=Annonce.Statut.ACTIVE)
-        q = request.query_params.get("q")
-        categorie_id = request.query_params.get("categorie_id")
-        ville = request.query_params.get("ville")
-        prix_min = request.query_params.get("prix_min")
-        prix_max = request.query_params.get("prix_max")
-        etat = request.query_params.get("etat")
-        type_vente = request.query_params.get("type_vente")
-        filtres_actifs = any(
-            valeur not in (None, "")
-            for valeur in (
-                q,
-                categorie_id,
-                ville,
-                prix_min,
-                prix_max,
-                etat,
-                type_vente,
-            )
-        )
-        if q:
-            annonces = annonces.filter(Q(titre__icontains=q) | Q(description__icontains=q))
-        if categorie_id:
-            try:
-                annonces = annonces.filter(categorie_id=int(categorie_id))
-            except (TypeError, ValueError) as exc:
-                raise ValidationError("categorie_id doit être un entier.") from exc
-        if ville:
-            annonces = annonces.filter(ville__iexact=ville)
-        try:
-            if prix_min:
-                annonces = annonces.filter(prix__gte=Decimal(prix_min))
-            if prix_max:
-                annonces = annonces.filter(prix__lte=Decimal(prix_max))
-        except (InvalidOperation, TypeError) as exc:
-            raise ValidationError("prix_min et prix_max doivent être des nombres.") from exc
-        if etat:
-            if etat not in Annonce.Etat.values:
-                raise ValidationError("etat doit valoir neuf ou occasion.")
-            annonces = annonces.filter(etat=etat)
-        if type_vente:
-            if type_vente not in Annonce.TypeVente.values:
-                raise ValidationError("type_vente doit valoir fixe ou enchere.")
-            annonces = annonces.filter(type_vente=type_vente)
+        annonces, filtres_actifs = filtrer_annonces_publiques(annonces, request.query_params)
 
         # Le cache est réservé au cas le plus consulté, sans risquer de servir
         # une page associée à un tri ou à une taille de page différente.
@@ -195,6 +223,48 @@ class AnnoncesView(APIView):
         annonce = serializer.save()
         invalider_cache_annonces_publiques()
         return Response(AnnonceSerializer(annonce).data, status=status.HTTP_201_CREATED)
+
+
+class AnnoncesCarteView(APIView):
+    """Recherche les annonces actives autour d'un point géographique."""
+
+    permission_classes = [AllowAny]
+
+    @extend_schema(
+        tags=["Recherche"],
+        auth=[],
+        responses={200: AnnonceSerializer(many=True), 422: ErreurSerializer},
+        operation_id="annonces_carte_list",
+        summary="Rechercher des annonces sur une carte",
+    )
+    def get(self, request):
+        """Utilise ST_DWithin sur la colonne GEOGRAPHY indexée GiST."""
+        try:
+            latitude = Decimal(request.query_params["lat"])
+            longitude = Decimal(request.query_params["lng"])
+            rayon_km = Decimal(request.query_params.get("rayon_km", "10"))
+        except (KeyError, InvalidOperation, TypeError) as exc:
+            raise ValidationError(
+                "lat, lng et rayon_km doivent être des nombres valides."
+            ) from exc
+        if not -90 <= latitude <= 90 or not -180 <= longitude <= 180 or rayon_km <= 0:
+            raise ValidationError("lat, lng ou rayon_km est hors des limites autorisées.")
+        if rayon_km > Decimal("100"):
+            raise ValidationError("rayon_km ne peut pas dépasser 100 km.")
+
+        annonces = Annonce.objects.filter(statut=Annonce.Statut.ACTIVE).extra(
+            where=[
+                "ST_DWithin(localisation, "
+                "ST_SetSRID(ST_MakePoint(%s, %s), 4326)::geography, %s)"
+            ],
+            params=[str(longitude), str(latitude), str(rayon_km * 1000)],
+        )
+        annonces = (
+            annonces.select_related("vendeur", "categorie")
+            .prefetch_related("images")
+            .order_by("-date_publication", "-id")
+        )
+        return Response(AnnonceSerializer(annonces, many=True).data)
 
 
 class MesAnnoncesView(APIView):

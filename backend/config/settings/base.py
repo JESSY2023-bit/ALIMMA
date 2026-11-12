@@ -16,13 +16,17 @@ def declarer_operations_publiques(result, generator, request, public):
     Bearer token n'est requis, même en présence de la sécurité globale.
     """
     paths = result.get("paths", {})
-    for path in (
-        "/v1/auth/inscription",
-        "/v1/auth/login",
-        "/v1/auth/refresh",
-        "/v1/admin/categories",
+    # Le tuple associe explicitement chaque chemin à sa méthode publique :
+    # déclarer seulement le chemin rendrait par erreur publics ses autres verbes.
+    for path, methode in (
+        ("/v1/auth/inscription", "post"),
+        ("/v1/auth/login", "post"),
+        ("/v1/auth/refresh", "post"),
+        ("/v1/admin/categories", "get"),
+        ("/v1/annonces", "get"),
+        ("/v1/annonces/carte", "get"),
     ):
-        operation = paths.get(path, {}).get("post")
+        operation = paths.get(path, {}).get(methode)
         if operation is not None:
             operation["security"] = []
     return result

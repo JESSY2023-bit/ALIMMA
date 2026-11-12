@@ -12,6 +12,7 @@
 
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS "pg_trgm";        -- recherche floue sur titres/descriptions
+CREATE EXTENSION IF NOT EXISTS "postgis";         -- recherche géographique des annonces
 
 -- =====================================================================
 -- 1. TYPES ÉNUMÉRÉS
@@ -139,6 +140,7 @@ CREATE TABLE annonces (
     quartier            VARCHAR(100),
     latitude            DECIMAL(9,6),
     longitude           DECIMAL(9,6),
+    localisation        GEOGRAPHY(POINT,4326),
     statut              statut_annonce NOT NULL DEFAULT 'en_attente_moderation',
     nb_vues             INTEGER DEFAULT 0,
     date_publication    TIMESTAMPTZ,
@@ -151,6 +153,9 @@ CREATE INDEX idx_annonces_categorie ON annonces(categorie_id);
 CREATE INDEX idx_annonces_statut ON annonces(statut);
 CREATE INDEX idx_annonces_coordinates ON annonces(latitude, longitude);
 CREATE INDEX idx_annonces_titre_trgm ON annonces USING GIN (titre gin_trgm_ops);
+CREATE INDEX idx_ann_desc_trgm ON annonces USING GIN (description gin_trgm_ops);
+CREATE INDEX idx_ann_statut_pub ON annonces(statut, date_publication DESC);
+CREATE INDEX idx_annonces_localisation_gist ON annonces USING GIST (localisation);
 
 CREATE TABLE annonce_images (
     id          BIGSERIAL PRIMARY KEY,
