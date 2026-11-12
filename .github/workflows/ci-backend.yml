@@ -4,9 +4,13 @@ on:
   push:
     paths:
       - "backend/**"
+      - "infra/**"
+      - ".github/workflows/ci-backend.yml"
   pull_request:
     paths:
       - "backend/**"
+      - "infra/**"
+      - ".github/workflows/ci-backend.yml"
 
 jobs:
   test:
