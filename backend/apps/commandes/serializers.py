@@ -4,6 +4,8 @@ from drf_spectacular.utils import extend_schema_serializer
 
 from apps.catalogue.serializers import AnnonceSerializer
 
+from .models import Commande
+
 
 @extend_schema_serializer(component_name="PanierArticleRequest")
 class PanierArticleEcritureSerializer(serializers.Serializer):
@@ -49,3 +51,47 @@ class PanierSerializer(serializers.Serializer):
         max_digits=12, decimal_places=2, read_only=True, coerce_to_string=False
     )
     message = serializers.CharField(read_only=True, required=False)
+
+
+@extend_schema_serializer(component_name="CommandeCreateRequest")
+class CommandeCreationSerializer(serializers.Serializer):
+    """Valide le corps de création d'une commande individuelle."""
+
+    annonce_id = serializers.IntegerField(min_value=1)
+    quantite = serializers.IntegerField(min_value=1, default=1, required=False)
+    mode_paiement = serializers.ChoiceField(choices=Commande.ModePaiement.choices)
+    operateur = serializers.ChoiceField(
+        choices=("mtn", "orange"), required=False, allow_null=True
+    )
+    adresse_livraison = serializers.CharField(allow_blank=False)
+    ville_livraison = serializers.CharField(max_length=100, allow_blank=False)
+    code_promo = serializers.CharField(max_length=30, required=False, allow_blank=False)
+
+
+@extend_schema_serializer(component_name="Commande")
+class CommandeSerializer(serializers.ModelSerializer):
+    """Représentation publique d'une commande créée ou consultée."""
+
+    acheteur_id = serializers.IntegerField(read_only=True)
+    annonce_id = serializers.IntegerField(read_only=True)
+    vendeur_id = serializers.IntegerField(read_only=True)
+    montant_total = serializers.DecimalField(
+        max_digits=12, decimal_places=2, read_only=True, coerce_to_string=False
+    )
+    message = serializers.CharField(read_only=True, required=False)
+
+    class Meta:
+        model = Commande
+        fields = (
+            "id",
+            "acheteur_id",
+            "annonce_id",
+            "vendeur_id",
+            "montant_total",
+            "mode_paiement",
+            "statut",
+            "adresse_livraison",
+            "created_at",
+            "message",
+        )
+        read_only_fields = fields

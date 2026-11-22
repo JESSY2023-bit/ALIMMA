@@ -323,18 +323,19 @@ components:
           enum: [attente_paiement, confirmee, payee, preparee, en_transit, livree, annulee, litige]
         adresse_livraison: { type: string }
         created_at: { type: string, format: date-time }
+        message: { type: string, nullable: true, description: Message d'information, notamment pour un code promo ignoré. }
 
     CommandeCreateRequest:
       type: object
       required: [annonce_id, mode_paiement, adresse_livraison, ville_livraison]
       properties:
         annonce_id: { type: integer }
-        quantite: { type: integer, default: 1 }
+        quantite: { type: integer, minimum: 1, default: 1 }
         mode_paiement: { type: string, enum: [mobile_money, cod] }
         operateur: { type: string, enum: [mtn, orange], nullable: true }
         adresse_livraison: { type: string }
         ville_livraison: { type: string }
-        code_promo: { type: string, nullable: true }
+        code_promo: { type: string, maxLength: 30, nullable: true }
 
     Avis:
       type: object
@@ -911,6 +912,8 @@ paths:
               schema:
                 type: array
                 items: { $ref: '#/components/schemas/Commande' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/ValidationError' }
     post:
       tags: [Panier & Commandes]
       summary: Passer une commande (choix du mode de paiement)
@@ -925,6 +928,15 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Commande' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '501':
+          description: Le paiement Mobile Money n'est pas encore disponible au MVP.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Erreur' }
 
   /commandes/{id}:
     get:

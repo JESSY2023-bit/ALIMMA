@@ -30,6 +30,9 @@ dist-ssr
 _pycache_/
 *.py[cod]
 *$py.class
+.coverage
+coverage.xml
+htmlcov/
 
 # Environnements virtuels
 venv/

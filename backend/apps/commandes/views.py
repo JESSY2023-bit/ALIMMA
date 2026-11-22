@@ -1,5 +1,6 @@
 """Vues authentifiées de gestion du panier Redis."""
-from drf_spectacular.utils import extend_schema
+from drf_spectacular.utils import OpenApiParameter, OpenApiTypes, extend_schema
+from django.db.models import Q
 from rest_framework import status
 from rest_framework.exceptions import NotFound, ValidationError
 from rest_framework.permissions import IsAuthenticated
@@ -10,10 +11,14 @@ from apps.accounts.serializers import ErreurSerializer
 from apps.catalogue.models import Annonce
 
 from .serializers import (
+    CommandeCreationSerializer,
+    CommandeSerializer,
     PanierArticleEcritureSerializer,
     PanierQuantiteSerializer,
     PanierSerializer,
 )
+from .models import Commande
+from .services_commandes import creer_commande
 from .services import construire_panier, enregistrer_contenu, lire_contenu
 
 
@@ -129,3 +134,71 @@ class PanierArticleDetailView(APIView):
             raise NotFound("Cet article n'est pas dans votre panier.") from exc
         enregistrer_contenu(request.user.id, contenu)
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class CommandesView(APIView):
+    """Liste ou crée les commandes auxquelles participe le compte connecté."""
+
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        tags=["Panier & Commandes"],
+        parameters=[
+            OpenApiParameter("role", OpenApiTypes.STR, enum=["acheteur", "vendeur"]),
+            OpenApiParameter("statut", OpenApiTypes.STR, enum=Commande.Statut.values),
+        ],
+        responses={
+            200: CommandeSerializer(many=True),
+            401: ErreurSerializer,
+            422: ErreurSerializer,
+        },
+        operation_id="commandes_list",
+        summary="Lister mes commandes",
+    )
+    def get(self, request):
+        """Retourne les achats et ventes du compte, filtrables par rôle et statut."""
+        role = request.query_params.get("role")
+        statut = request.query_params.get("statut")
+
+        if role not in (None, "acheteur", "vendeur"):
+            raise ValidationError({"role": "La valeur doit être acheteur ou vendeur."})
+        if statut and statut not in Commande.Statut.values:
+            raise ValidationError({"statut": "Statut de commande invalide."})
+
+        commandes = Commande.objects.order_by("-created_at")
+        if role == "acheteur":
+            commandes = commandes.filter(acheteur=request.user)
+        elif role == "vendeur":
+            commandes = commandes.filter(vendeur=request.user)
+        else:
+            commandes = commandes.filter(Q(acheteur=request.user) | Q(vendeur=request.user))
+        if statut:
+            commandes = commandes.filter(statut=statut)
+        return Response(CommandeSerializer(commandes, many=True).data)
+
+    @extend_schema(
+        tags=["Panier & Commandes"],
+        request=CommandeCreationSerializer,
+        responses={
+            201: CommandeSerializer,
+            401: ErreurSerializer,
+            404: ErreurSerializer,
+            409: ErreurSerializer,
+            422: ErreurSerializer,
+            501: ErreurSerializer,
+        },
+        operation_id="commandes_create",
+        summary="Passer une commande COD",
+    )
+    def post(self, request):
+        """Crée la commande, le paiement et la livraison dans une transaction atomique."""
+        serializer = CommandeCreationSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        commande, message = creer_commande(
+            acheteur=request.user,
+            donnees=serializer.validated_data,
+        )
+        donnees_reponse = CommandeSerializer(commande).data
+        if message:
+            donnees_reponse["message"] = message
+        return Response(donnees_reponse, status=status.HTTP_201_CREATED)
