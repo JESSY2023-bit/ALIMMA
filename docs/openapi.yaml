@@ -429,6 +429,11 @@ components:
       content:
         application/json:
           schema: { $ref: '#/components/schemas/Erreur' }
+    RateLimited:
+      description: Limite de débit atteinte. Le code retourné est `RATE_LIMITED`.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Erreur' }
 
 security:
   - bearerAuth: []
@@ -456,6 +461,7 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Utilisateur' }
         '422': { $ref: '#/components/responses/ValidationError' }
+        '429': { $ref: '#/components/responses/RateLimited' }
 
   /auth/login:
     post:
@@ -482,6 +488,7 @@ paths:
                 refresh_token: <refresh_token>
                 utilisateur: { id: 1, nom: Alice Ngono }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '429': { $ref: '#/components/responses/RateLimited' }
 
   /auth/verify-otp:
     post:
@@ -500,6 +507,7 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/LoginResponse' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '429': { $ref: '#/components/responses/RateLimited' }
 
   /auth/refresh:
     post:
@@ -527,6 +535,7 @@ paths:
                 refresh_token: <nouveau_refresh_token>
                 utilisateur: { id: 1, nom: Alice Ngono }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '429': { $ref: '#/components/responses/RateLimited' }
 
   /auth/logout:
     post:
@@ -574,6 +583,7 @@ paths:
               schema: { $ref: '#/components/schemas/ProfilUtilisateur' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '422': { $ref: '#/components/responses/ValidationError' }
+        '429': { $ref: '#/components/responses/RateLimited' }
 
   /utilisateurs/moi/mot-de-passe:
     put:
@@ -587,6 +597,7 @@ paths:
         '204': { description: Mot de passe modifié }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '422': { $ref: '#/components/responses/ValidationError' }
+        '429': { $ref: '#/components/responses/RateLimited' }
 
   /utilisateurs/{id}:
     get:
@@ -605,6 +616,7 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/ProfilPublic' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
 
   # ------------------------------------------------------------- ANNONCES
   /annonces:
@@ -648,6 +660,7 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/ListeAnnonces' }
         '422': { $ref: '#/components/responses/ValidationError' }
+        '429': { $ref: '#/components/responses/RateLimited' }
     post:
       tags: [Annonces]
       summary: Publier une nouvelle annonce (statut initial "en_attente_moderation")
@@ -664,6 +677,7 @@ paths:
               schema: { $ref: '#/components/schemas/Annonce' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '422': { $ref: '#/components/responses/ValidationError' }
+        '429': { $ref: '#/components/responses/RateLimited' }
 
   /annonces/carte:
     get:
@@ -690,6 +704,7 @@ paths:
               schema:
                 type: array
                 items: { $ref: '#/components/schemas/Annonce' }
+        '429': { $ref: '#/components/responses/RateLimited' }
 
   /annonces/{id}:
     get:
@@ -710,6 +725,7 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/AnnonceDetail' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
     patch:
       tags: [Annonces]
       summary: Modifier une annonce (auteur uniquement)
@@ -1389,6 +1405,7 @@ paths:
               schema:
                 type: array
                 items: { $ref: '#/components/schemas/Categorie' }
+        '429': { $ref: '#/components/responses/RateLimited' }
     post:
       tags: [Administration]
       summary: Créer une catégorie ou sous-catégorie

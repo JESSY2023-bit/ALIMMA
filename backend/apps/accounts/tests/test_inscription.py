@@ -1,9 +1,18 @@
 """Tests de l'inscription publique des utilisateurs."""
 import pytest
+from django.core.cache import cache
 
 from apps.accounts.models import Parrainage, Utilisateur
 
 URL = "/v1/auth/inscription"
+
+
+@pytest.fixture(autouse=True)
+def vider_cache():
+    """Évite qu'un quota public d'un test n'influence le scénario suivant."""
+    cache.clear()
+    yield
+    cache.clear()
 
 
 def inscription_payload(**overrides):

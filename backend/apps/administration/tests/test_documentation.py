@@ -34,6 +34,16 @@ def test_generated_schema_marks_login_and_refresh_as_public():
     assert schema["paths"]["/v1/auth/refresh"]["post"]["security"] == []
 
 
+def test_generated_schema_documente_la_limitation_de_debit():
+    """Les routes à quotas exposent la réponse 429 normalisée aux clients."""
+    schema = SchemaGenerator().get_schema(request=None, public=True)
+
+    inscription = schema["paths"]["/v1/auth/inscription"]["post"]["responses"]
+    login = schema["paths"]["/v1/auth/login"]["post"]["responses"]
+    assert "429" in inscription
+    assert "429" in login
+
+
 def test_generated_schema_types_categories_et_images_explicitement():
     """Les champs calculés restent des tableaux dans Swagger, pas des chaînes."""
     schema = SchemaGenerator().get_schema(request=None, public=True)

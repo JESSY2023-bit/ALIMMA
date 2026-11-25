@@ -14,6 +14,7 @@ from rest_framework.views import APIView
 
 from apps.accounts.permissions import EstAdministrateur
 from apps.accounts.serializers import ErreurSerializer
+from config.network import ip_client
 
 from .models import Annonce, Categorie
 from .permissions import EstProprietaireAnnonce, PeutConsulterAnnonce
@@ -132,6 +133,11 @@ class AnnoncesView(APIView):
             return [AllowAny()]
         return [IsAuthenticated()]
 
+    def get_throttles(self):
+        """Applique le quota public à la liste et le quota vendeur à la création."""
+        self.throttle_scope = "public" if self.request.method == "GET" else "publication"
+        return super().get_throttles()
+
     @extend_schema(
         tags=["Annonces"],
         auth=[],
@@ -209,7 +215,12 @@ class AnnoncesView(APIView):
     @extend_schema(
         tags=["Annonces"],
         request={"multipart/form-data": AnnonceCreationSerializer},
-        responses={201: AnnonceSerializer, 401: ErreurSerializer, 422: ErreurSerializer},
+        responses={
+            201: AnnonceSerializer,
+            401: ErreurSerializer,
+            422: ErreurSerializer,
+            429: ErreurSerializer,
+        },
         operation_id="annonces_create",
         summary="Publier une nouvelle annonce",
     )
@@ -229,11 +240,17 @@ class AnnoncesCarteView(APIView):
     """Recherche les annonces actives autour d'un point géographique."""
 
     permission_classes = [AllowAny]
+    authentication_classes = []
+    throttle_scope = "public"
 
     @extend_schema(
         tags=["Recherche"],
         auth=[],
-        responses={200: AnnonceSerializer(many=True), 422: ErreurSerializer},
+        responses={
+            200: AnnonceSerializer(many=True),
+            422: ErreurSerializer,
+            429: ErreurSerializer,
+        },
         operation_id="annonces_carte_list",
         summary="Rechercher des annonces sur une carte",
     )
@@ -298,6 +315,11 @@ class AnnonceDetailView(APIView):
             return [AllowAny(), PeutConsulterAnnonce()]
         return [IsAuthenticated(), EstProprietaireAnnonce()]
 
+    def get_throttles(self):
+        """Limite les consultations publiques sans pénaliser les mutations privées."""
+        self.throttle_scope = "public" if self.request.method == "GET" else None
+        return super().get_throttles()
+
     @staticmethod
     def get_annonce(id):
         """Charge l'annonce ciblée sans filtrer son statut pour son vendeur."""
@@ -309,7 +331,11 @@ class AnnonceDetailView(APIView):
     @extend_schema(
         tags=["Annonces"],
         auth=[],
-        responses={200: AnnonceDetailSerializer, 404: ErreurSerializer},
+        responses={
+            200: AnnonceDetailSerializer,
+            404: ErreurSerializer,
+            429: ErreurSerializer,
+        },
         operation_id="annonces_retrieve",
         summary="Consulter le détail public d'une annonce active",
     )
@@ -338,9 +364,10 @@ class AnnonceDetailView(APIView):
             # Une 404 ne révèle pas qu'une annonce privée existe réellement.
             raise NotFound("Annonce introuvable.") from exc
 
-        # L'adresse IP est le facteur de déduplication retenu au MVP. Redis
-        # garantit une fenêtre de 24 h sans bloquer la réponse de détail.
-        adresse_ip = request.META.get("REMOTE_ADDR", "inconnue")
+        # L'adresse client tient compte du proxy Render seulement lorsqu'il est
+        # déclaré fiable. Redis garantit une fenêtre de 24 h sans bloquer la
+        # réponse de détail.
+        adresse_ip = ip_client(request) or "inconnue"
         cle_vue = f"annonce:{annonce.id}:vue:{adresse_ip}"
         if cache.add(cle_vue, "1", timeout=24 * 60 * 60):
             Annonce.objects.filter(pk=annonce.pk).update(nb_vues=F("nb_vues") + 1)
@@ -447,10 +474,15 @@ class CategoriesAdministrationView(APIView):
             return [AllowAny()]
         return [IsAuthenticated(), EstAdministrateur()]
 
+    def get_throttles(self):
+        """Protège l'arborescence publique, sans quota de consultation admin dédié."""
+        self.throttle_scope = "public" if self.request.method == "GET" else None
+        return super().get_throttles()
+
     @extend_schema(
         tags=["Administration"],
         auth=[],
-        responses={200: CategorieSerializer(many=True)},
+        responses={200: CategorieSerializer(many=True), 429: ErreurSerializer},
         summary="Lister les catégories et sous-catégories",
     )
     def get(self, request):

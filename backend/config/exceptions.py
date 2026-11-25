@@ -1,5 +1,5 @@
 """Format d'erreur public défini par le contrat OpenAPI."""
-from rest_framework.exceptions import AuthenticationFailed
+from rest_framework.exceptions import AuthenticationFailed, Throttled
 from rest_framework.views import exception_handler as drf_exception_handler
 
 
@@ -24,6 +24,12 @@ def api_exception_handler(exc, context):
     # Le contrat ALIMMA impose néanmoins 401 pour des identifiants ou tokens invalides.
     if isinstance(exc, AuthenticationFailed):
         response.status_code = 401
+    if isinstance(exc, Throttled):
+        response.data = {
+            "code": "RATE_LIMITED",
+            "message": "Trop de requêtes. Veuillez réessayer plus tard.",
+        }
+        return response
     # DRF peut retourner un dictionnaire (erreur de champ) ou une liste
     # (ValidationError construite depuis une simple chaîne). Les deux formes
     # doivent être normalisées sans provoquer une erreur 500.

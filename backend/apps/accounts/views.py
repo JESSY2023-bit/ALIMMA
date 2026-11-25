@@ -37,12 +37,13 @@ class InscriptionView(APIView):
 
     permission_classes = [AllowAny]
     authentication_classes = []
+    throttle_scope = "inscription"
 
     @extend_schema(
         tags=["Auth"],
         auth=[],
         request=InscriptionSerializer,
-        responses={201: UtilisateurSerializer, 422: ErreurSerializer},
+        responses={201: UtilisateurSerializer, 422: ErreurSerializer, 429: ErreurSerializer},
         summary="Créer un compte utilisateur",
     )
     def post(self, request):
@@ -97,6 +98,7 @@ class LoginView(APIView):
 
     permission_classes = [AllowAny]
     authentication_classes = []
+    throttle_scope = "login"
 
     @extend_schema(
         tags=["Auth"],
@@ -121,6 +123,7 @@ class LoginView(APIView):
             ),
             401: ErreurSerializer,
             422: ErreurSerializer,
+            429: ErreurSerializer,
         },
         examples=[
             OpenApiExample(
@@ -135,7 +138,7 @@ class LoginView(APIView):
         serializer = LoginSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         identifier = serializer.validated_data["identifiant"]
-        if LoginAttemptLimiter.is_blocked(identifier):
+        if LoginAttemptLimiter.is_blocked(identifier, request):
             raise AuthenticationFailed(INVALID_CREDENTIALS_MESSAGE)
 
         utilisateur = Utilisateur.objects.filter(telephone=identifier).first()
@@ -148,10 +151,10 @@ class LoginView(APIView):
         ):
             # Le message reste volontairement générique pour ne pas révéler
             # l'existence d'un compte ni l'origine exacte de l'échec.
-            LoginAttemptLimiter.register_failure(identifier)
+            LoginAttemptLimiter.register_failure(identifier, request)
             raise AuthenticationFailed(INVALID_CREDENTIALS_MESSAGE)
 
-        LoginAttemptLimiter.clear(identifier)
+        LoginAttemptLimiter.clear(identifier, request)
         utilisateur.derniere_connexion = timezone.now()
         utilisateur.save(update_fields=["derniere_connexion", "updated_at"])
         if settings.FEATURE_2FA_ENABLED and utilisateur.deux_fa_active:
@@ -172,6 +175,7 @@ class RefreshView(APIView):
 
     permission_classes = [AllowAny]
     authentication_classes = []
+    throttle_scope = "public"
 
     @extend_schema(
         tags=["Auth"],
@@ -196,6 +200,7 @@ class RefreshView(APIView):
             ),
             401: ErreurSerializer,
             422: ErreurSerializer,
+            429: ErreurSerializer,
         },
         examples=[
             OpenApiExample(
@@ -326,6 +331,7 @@ class ProfilPublicView(APIView):
 
     permission_classes = [AllowAny]
     authentication_classes = []
+    throttle_scope = "public"
 
     @extend_schema(
         tags=["Utilisateurs"],

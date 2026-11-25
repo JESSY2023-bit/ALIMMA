@@ -1,12 +1,12 @@
 """Sérialiseurs du catalogue."""
 from decimal import Decimal
-from uuid import uuid4
 
 from django.conf import settings
-from django.core.files.storage import default_storage
 from django.utils.text import slugify
 from drf_spectacular.utils import extend_schema_field, extend_schema_serializer
 from rest_framework import serializers
+
+from config.media import enregistrer_image
 
 from .models import Annonce, AnnonceImage, Categorie
 
@@ -321,12 +321,9 @@ class AnnonceCreationSerializer(serializers.ModelSerializer):
             **validated_data,
         )
         for ordre, image in enumerate(images):
-            extension = image.name.rsplit(".", 1)[-1].lower() if "." in image.name else ""
-            filename = f"annonces/{annonce.id}/{uuid4().hex}{'.' + extension if extension else ''}"
-            chemin = default_storage.save(filename, image)
             AnnonceImage.objects.create(
                 annonce=annonce,
-                url=default_storage.url(chemin),
+                url=enregistrer_image(image, f"annonces/{annonce.id}"),
                 ordre=ordre,
             )
         return annonce
@@ -448,15 +445,9 @@ class AnnonceModificationSerializer(serializers.ModelSerializer):
         instance._prefetched_objects_cache.pop("images", None)
         prochain_ordre = instance.images.count()
         for ordre, image in enumerate(images_ajoutees, start=prochain_ordre):
-            extension = image.name.rsplit(".", 1)[-1].lower() if "." in image.name else ""
-            filename = (
-                f"annonces/{instance.id}/{uuid4().hex}"
-                f"{'.' + extension if extension else ''}"
-            )
-            chemin = default_storage.save(filename, image)
             AnnonceImage.objects.create(
                 annonce=instance,
-                url=default_storage.url(chemin),
+                url=enregistrer_image(image, f"annonces/{instance.id}"),
                 ordre=ordre,
             )
         return instance

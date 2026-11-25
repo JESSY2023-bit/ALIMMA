@@ -2,6 +2,7 @@
 from .base import *  # noqa: F401,F403
 
 DEBUG = True
+MEDIA_BACKEND = __import__("os").environ.get("MEDIA_BACKEND", "local").lower()
 ALLOWED_HOSTS = [
     host.strip()
     for host in __import__("os").environ.get(

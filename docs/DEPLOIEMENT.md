@@ -55,6 +55,10 @@ POSTGRES_SSLMODE=prefer
 REDIS_URL=redis://redis:6379/1
 CORS_ALLOWED_ORIGINS=http://localhost:5173,http://localhost:3000
 FEATURE_2FA_ENABLED=false
+
+# Le développement garde les fichiers en local. En production Render, utilisez
+# un bucket Cloudflare R2 ou AWS S3 afin de survivre aux redéploiements.
+MEDIA_BACKEND=local
 ```
 
 Les valeurs `POSTGRES_DB`, `POSTGRES_USER` et `POSTGRES_PASSWORD` de
@@ -87,6 +91,35 @@ en production, seule `ALLOWED_HOSTS` est lue.
 
 Pour la base Docker locale, `POSTGRES_SSLMODE=prefer` reste le défaut afin de
 fonctionner avec ou sans TLS.
+
+## Durcissement API et observabilité
+
+En production Render, configurez les variables suivantes dans le service
+backend. `NUM_PROXIES=1` autorise l'application à utiliser l'adresse réelle
+transmise par le proxy Render dans `X-Forwarded-For`; ne définissez jamais
+cette valeur si l'application est exposée directement à Internet.
+
+```dotenv
+NUM_PROXIES=1
+THROTTLE_INSCRIPTION_RATE=5/hour
+THROTTLE_LOGIN_RATE=10/minute
+THROTTLE_OTP_RATE=3/hour
+THROTTLE_PUBLICATION_RATE=20/day
+THROTTLE_PUBLIC_RATE=120/minute
+THROTTLE_ANON_RATE=120/minute
+THROTTLE_USER_RATE=1000/day
+LOG_LEVEL=INFO
+DJANGO_ENV=production
+SENTRY_DSN=https://cle-publique@o0.ingest.sentry.io/projet
+SENTRY_TRACES_SAMPLE_RATE=0.05
+```
+
+Une valeur vide de `SENTRY_DSN` désactive complètement Sentry. Les journaux
+sont produits au format JSON sur stdout et comprennent `request_id`; le client
+peut fournir `X-Request-ID` (128 caractères maximum) pour corréler une action,
+sinon l'API en génère un et le retourne dans l'en-tête de réponse. Les limites
+peuvent être adaptées à la charge sans redéploiement du code; une réponse 429
+utilise toujours `{ "code": "RATE_LIMITED", "message": "..." }`.
 
 ### Sauvegarde Neon
 
@@ -255,6 +288,48 @@ Vercel autorisées, sans chemin `/v1`, par exemple :
 CORS_ALLOWED_ORIGINS=https://alimma.vercel.app,https://alimma-git-develop-votre-compte.vercel.app
 ```
 
+## Stockage persistant des images (Cloudflare R2 ou AWS S3)
+
+Le disque d'un service Render est éphémère. En production, configurez un
+bucket S3 compatible et utilisez `MEDIA_BACKEND=s3`. Pour Cloudflare R2,
+créez un jeton avec les droits de lecture/écriture sur le bucket, puis ajoutez
+ces variables dans Render :
+
+```dotenv
+MEDIA_BACKEND=s3
+AWS_STORAGE_BUCKET_NAME=alimma-medias
+AWS_S3_ENDPOINT_URL=https://<account-id>.r2.cloudflarestorage.com
+AWS_ACCESS_KEY_ID=...
+AWS_SECRET_ACCESS_KEY=...
+# Domaine public R2/Cloudflare CDN, sans https:// ni slash final.
+AWS_S3_CUSTOM_DOMAIN=media.exemple.com
+AWS_QUERYSTRING_AUTH=False
+```
+
+`AWS_S3_CUSTOM_DOMAIN` est facultatif : sans lui, l'URL du bucket est utilisée.
+Les fichiers sont convertis en WebP, stockés sous des UUID non devinables dans
+`annonces/<id>/` ou `profils/<id>/`.
+
+### Migration des médias existants
+
+Après avoir configuré le backend S3 et déployé le code, copiez les fichiers
+locaux encore accessibles vers le bucket. Vérifiez d'abord l'opération :
+
+```bash
+python manage.py migrer_medias --source-root /chemin/vers/media --dry-run
+```
+
+Puis exécutez-la sans `--dry-run` :
+
+```bash
+python manage.py migrer_medias --source-root /chemin/vers/media
+```
+
+La commande ne traite que les URL locales `/media/` et devient idempotente dès
+que les URL de base ont été remplacées par celles du stockage objet.
+Utilisez `--source-media-url` si vos anciennes URL locales n'emploient pas ce
+préfixe.
+
 ## Préparation de la production
 
 La configuration Compose actuelle est conçue pour le développement : elle
@@ -284,6 +359,42 @@ Après déploiement, vérifiez au minimum :
 curl -i http://votre-domaine.example/v1/schema/
 curl -i http://votre-domaine.example/v1/docs/
 ```
+
+## Rollback
+
+Un déploiement automatique ne démarre qu'après une CI GitHub Actions réussie
+sur `main`. Si une régression atteint malgré tout la production, commencez par
+vérifier l'état de la base : un rollback de code ne restaure jamais les données
+ni le schéma PostgreSQL.
+
+### Rétablir une version applicative Render
+
+1. Ouvrez le service backend dans Render, puis **Deploys**.
+2. Sélectionnez le dernier déploiement réussi et cliquez sur **Rollback**.
+3. Vérifiez `/v1/schema/`, `/v1/docs/` et le parcours concerné.
+
+Render réutilise l'artefact du déploiement cible ; son rollback depuis le
+tableau de bord désactive aussi l'auto-déploiement. Ne le réactivez qu'après
+avoir corrigé la cause. Si le déploiement voulu n'est plus dans l'historique,
+utilisez **Manual Deploy** puis **Deploy a specific commit** avec le SHA Git
+connu comme stable.
+
+Pour le frontend Vercel, ouvrez le déploiement stable dans le tableau de bord
+et utilisez **Promote to Production**, ou redéployez le commit Git stable.
+
+### Restaurer Neon avec prudence
+
+Avant toute restauration, créez une sauvegarde `pg_dump` de l'état courant et
+mettez Render en maintenance ou désactivez ses déploiements automatiques.
+Dans Neon, créez d'abord une branche depuis le point antérieur à l'incident
+(branche ou point dans le temps/PITR), puis contrôlez son schéma et ses données.
+Pointez temporairement un environnement de vérification vers cette branche.
+Seulement après validation, basculez les variables `POSTGRES_*` de Render vers
+l'endpoint de la branche restaurée et redéployez le backend.
+
+Cette séquence évite d'écraser des données récentes par erreur et permet de
+vérifier qu'une ancienne version du code reste compatible avec le schéma après
+migration.
 
 ## Dépannage
 
