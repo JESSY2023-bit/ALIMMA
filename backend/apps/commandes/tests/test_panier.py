@@ -149,7 +149,10 @@ def test_panier_refuse_propre_annonce_quantite_invalide_et_anonyme(client, utili
     assert propre.status_code == 422
     assert invalide.status_code == 422
     assert anonyme.status_code == 401
-    assert set(invalide.json()) == {"code", "message"}
+    # Les erreurs 422 conservent le format historique et précisent désormais
+    # le champ concerné pour permettre l'affichage dans le formulaire.
+    assert {"code", "message", "details"} <= set(invalide.json())
+    assert "quantite" in invalide.json()["details"]
 
 
 @pytest.mark.django_db
