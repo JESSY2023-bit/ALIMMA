@@ -1,4 +1,4 @@
-import { Button } from "./Button";
+import { Button } from "./button";
 import { Icon } from "./Icon";
 
 /** Encart rouge en haut du formulaire pour les erreurs serveur (5xx) et réseau. */

@@ -1,7 +1,7 @@
 // export * from "./utils";
 // export * from "./Icon";
 // export * from "./Spinner";
-// export * from "./Button";
+// export * from "./button";
 // export * from "./IconButton";
 // export * from "./Field";
 // export * from "./Input";
