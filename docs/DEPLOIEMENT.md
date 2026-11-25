@@ -247,13 +247,114 @@ py manage.py compare_openapi --fail-on-diff
 docker compose --env-file infra/.env -f infra/docker-compose.yml \
   exec backend python manage.py shell
 
-# Créer un administrateur Django
+# Créer le premier administrateur ALIMMA (mot de passe demandé de façon sûre)
 docker compose --env-file infra/.env -f infra/docker-compose.yml \
-  exec backend python manage.py createsuperuser
+  exec backend python manage.py creer_administrateur \
+  --telephone +237699000001 --nom "Administrateur ALIMMA"
 ```
 
 L'administration Django est disponible sur `http://127.0.0.1:8000/admin/`
 après création d'un administrateur.
+
+## Créer le premier administrateur
+
+Le rôle métier `administrateur` est le seul niveau d'administration : il donne
+automatiquement accès à `/admin/` et aux routes `/v1/admin/*`. La commande
+`creer_administrateur` normalise un téléphone camerounais local (`699000001`
+devient `+237699000001`), demande le mot de passe de manière interactive et
+conserve une trace dans `journal_moderation`.
+
+N'utilisez pas `createsuperuser` : cette commande Django ne normalise pas le
+téléphone et peut créer un compte incapable de se connecter avec l'API ALIMMA.
+Ne passez jamais un mot de passe dans la ligne de commande. La variable
+`ALIMMA_ADMIN_PASSWORD` est réservée à une automatisation ponctuelle en CI ou
+dans un script sécurisé ; ne l'ajoutez ni à un fichier `.env`, ni à l'historique
+du shell.
+
+### Local avec Docker
+
+Depuis la racine du dépôt, simulez d'abord l'opération, puis créez le compte :
+
+```powershell
+docker compose --env-file infra/.env -f infra/docker-compose.yml exec backend `
+  python manage.py creer_administrateur --telephone 699000001 `
+  --nom "Administrateur ALIMMA" --dry-run
+
+docker compose --env-file infra/.env -f infra/docker-compose.yml exec backend `
+  python manage.py creer_administrateur --telephone 699000001 `
+  --nom "Administrateur ALIMMA"
+```
+
+Pour promouvoir avec confirmation un compte existant, ajoutez `--promouvoir`.
+Pour demander un nouveau mot de passe, ajoutez `--reinitialiser-mot-de-passe`.
+La sortie masque systématiquement le téléphone et n'affiche jamais le mot de
+passe ni son hash.
+
+### Production Neon depuis un poste local
+
+Le plan Render gratuit ne propose pas d'onglet **Shell**. Exécutez donc la
+commande depuis votre PC, dans `backend/`, avec le code correspondant exactement
+à la version déployée. Ne lancez pas `migrate` depuis le poste local.
+
+1. Depuis Neon, copiez l'URL de connexion dans une variable temporaire, puis
+   faites une sauvegarde avant toute opération :
+
+   ```powershell
+   $env:DATABASE_URL = "postgresql://..." # URL Neon, non versionnée
+   $date = Get-Date -Format yyyy-MM-dd-HHmm
+   pg_dump --format=custom --file="alimma-$date.dump" $env:DATABASE_URL
+   ```
+
+2. Définissez seulement dans ce terminal les paramètres Neon nécessaires à
+   Django. Remplacez chaque valeur par celles de **Connection Details** Neon :
+
+   ```powershell
+   $env:POSTGRES_DB = "nom_base_neon"
+   $env:POSTGRES_USER = "utilisateur_neon"
+   $env:POSTGRES_PASSWORD = "mot_de_passe_neon"
+   $env:POSTGRES_HOST = "hote-neon"
+   $env:POSTGRES_PORT = "5432"
+   $env:POSTGRES_SSLMODE = "require"
+   $env:DJANGO_SETTINGS_MODULE = "config.settings.dev"
+   ```
+
+3. Vérifiez que le code déployé correspond à la base, sans appliquer de
+   migration, puis simulez la création :
+
+   ```powershell
+   py manage.py showmigrations --plan
+   py manage.py creer_administrateur --telephone 699000001 `
+     --nom "Administrateur ALIMMA" --dry-run
+   ```
+
+4. Si le plan ne montre aucune migration non appliquée et que la simulation est
+   correcte, relancez sans `--dry-run`. Le terminal demande le mot de passe deux
+   fois sans l'afficher :
+
+   ```powershell
+   py manage.py creer_administrateur --telephone 699000001 `
+     --nom "Administrateur ALIMMA"
+   ```
+
+5. Fermez le terminal après l'opération, ou supprimez toutes les variables :
+
+   ```powershell
+   Remove-Item Env:DATABASE_URL, Env:POSTGRES_DB, Env:POSTGRES_USER, `
+     Env:POSTGRES_PASSWORD, Env:POSTGRES_HOST, Env:POSTGRES_PORT, `
+     Env:POSTGRES_SSLMODE, Env:DJANGO_SETTINGS_MODULE
+   ```
+
+Sous bash, l'équivalent temporaire est :
+
+```bash
+export POSTGRES_DB='nom_base_neon' POSTGRES_USER='utilisateur_neon'
+export POSTGRES_PASSWORD='mot_de_passe_neon' POSTGRES_HOST='hote-neon'
+export POSTGRES_PORT=5432 POSTGRES_SSLMODE=require
+python manage.py showmigrations --plan
+python manage.py creer_administrateur --telephone 699000001 --nom 'Administrateur ALIMMA' --dry-run
+python manage.py creer_administrateur --telephone 699000001 --nom 'Administrateur ALIMMA'
+unset POSTGRES_DB POSTGRES_USER POSTGRES_PASSWORD POSTGRES_HOST POSTGRES_PORT POSTGRES_SSLMODE
+```
 
 ## Frontend
 
