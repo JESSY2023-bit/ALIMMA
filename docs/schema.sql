@@ -27,13 +27,15 @@ CREATE TYPE type_vente AS ENUM ('fixe', 'enchere');
 CREATE TYPE etat_produit AS ENUM ('neuf', 'occasion');
 
 CREATE TYPE statut_annonce AS ENUM (
-    'en_attente_moderation', 'active', 'en_pause', 'rejetee', 'vendue', 'expiree'
+    'en_attente_moderation', 'active', 'reservee', 'en_pause', 'rejetee', 'vendue', 'expiree'
 );
 
 CREATE TYPE statut_commande AS ENUM (
-    'attente_paiement', 'confirmee', 'payee', 'preparee',
-    'en_transit', 'livree', 'annulee', 'litige'
+    'attente_paiement', 'attente_vendeur', 'acceptee', 'expediee', 'livree',
+    'echec_livraison', 'litige', 'terminee', 'annulee', 'remboursee'
 );
+
+CREATE TYPE mode_remise AS ENUM ('main_propre', 'livraison_vendeur');
 
 CREATE TYPE mode_paiement AS ENUM ('mobile_money', 'cod');
 
@@ -202,8 +204,13 @@ CREATE TABLE commandes (
     montant_total       NUMERIC(12,2) NOT NULL,
     mode_paiement       mode_paiement NOT NULL,
     statut              statut_commande NOT NULL DEFAULT 'attente_paiement',
-    adresse_livraison   TEXT NOT NULL,
-    ville_livraison     VARCHAR(100) NOT NULL,
+    mode_remise         mode_remise NOT NULL,
+    ville               VARCHAR(100) NOT NULL,
+    quartier            VARCHAR(100) NOT NULL,
+    repere              VARCHAR(200) NOT NULL,
+    latitude            DECIMAL(9,6),
+    longitude           DECIMAL(9,6),
+    telephone_contact   VARCHAR(20) NOT NULL,
     code_parrainage_utilise VARCHAR(12),
     created_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at          TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -211,6 +218,17 @@ CREATE TABLE commandes (
 CREATE INDEX idx_commandes_acheteur ON commandes(acheteur_id);
 CREATE INDEX idx_commandes_vendeur ON commandes(vendeur_id);
 CREATE INDEX idx_commandes_statut ON commandes(statut);
+
+CREATE TABLE historique_statuts_commandes (
+    id                  BIGSERIAL PRIMARY KEY,
+    commande_id         BIGINT NOT NULL REFERENCES commandes(id) ON DELETE CASCADE,
+    ancien_statut       statut_commande NOT NULL,
+    nouveau_statut      statut_commande NOT NULL,
+    acteur_id           BIGINT REFERENCES utilisateurs(id),
+    motif               TEXT,
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX idx_hist_cmd_date ON historique_statuts_commandes(commande_id, created_at);
 
 CREATE TABLE paiements (
     id                  BIGSERIAL PRIMARY KEY,

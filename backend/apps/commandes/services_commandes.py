@@ -20,14 +20,6 @@ class ConflitCommande(APIException):
     default_detail = "Cette annonce n'est plus disponible à la commande."
 
 
-class PaiementMobileMoneyNonDisponible(APIException):
-    """Indique que le canal Mobile Money n'est pas encore intégré au MVP."""
-
-    status_code = 501
-    default_code = "NOT_IMPLEMENTED"
-    default_detail = "Le paiement Mobile Money n'est pas encore disponible."
-
-
 def _generer_qr_code():
     """Produit un identifiant opaque de livraison sous la limite de 64 caractères."""
     return secrets.token_urlsafe(32)
@@ -78,19 +70,11 @@ def _appliquer_promotion(code, vendeur, montant_produit):
 
 
 def creer_commande(*, acheteur, donnees):
-    """Crée atomiquement la commande COD, son paiement et sa livraison.
+    """Crée atomiquement une commande directe, son paiement et sa livraison.
 
     L'annonce est verrouillée avant toute écriture. Deux transactions qui la
     ciblent ne peuvent donc pas confirmer le même article simultanément.
     """
-    if donnees["mode_paiement"] == Commande.ModePaiement.MOBILE_MONEY:
-        raise PaiementMobileMoneyNonDisponible()
-
-    # Le serializer injecte cette valeur pour l'API. La valeur par défaut est
-    # répétée ici afin que le service reste sûr lorsqu'il est appelé en tâche
-    # de fond ou dans un test transactionnel.
-    quantite = donnees.get("quantite", 1)
-
     with transaction.atomic():
         try:
             annonce = Annonce.objects.select_for_update().get(pk=donnees["annonce_id"])
@@ -102,7 +86,9 @@ def creer_commande(*, acheteur, donnees):
         if annonce.vendeur_id == acheteur.id:
             raise ValidationError("Vous ne pouvez pas commander votre propre annonce.")
 
-        montant_produit = annonce.prix * quantite
+        # Une annonce est un objet unique : quantité et multiplication du prix
+        # sont volontairement absentes du flux d'achat direct.
+        montant_produit = annonce.prix
         montant_reduit, code_applique, message = _appliquer_promotion(
             donnees.get("code_promo"), annonce.vendeur, montant_produit
         )
@@ -111,25 +97,35 @@ def creer_commande(*, acheteur, donnees):
             acheteur=acheteur,
             annonce=annonce,
             vendeur=annonce.vendeur,
-            quantite=quantite,
+            quantite=1,
             montant_produit=montant_produit,
             frais_livraison=frais,
             montant_total=montant_reduit + frais,
-            mode_paiement=Commande.ModePaiement.COD,
-            statut=Commande.Statut.CONFIRMEE,
-            adresse_livraison=donnees["adresse_livraison"],
-            ville_livraison=donnees["ville_livraison"],
+            mode_paiement=donnees["mode_paiement"],
+            statut=(
+                Commande.Statut.ATTENTE_PAIEMENT
+                if donnees["mode_paiement"] == Commande.ModePaiement.MOBILE_MONEY
+                else Commande.Statut.ATTENTE_VENDEUR
+            ),
+            mode_remise=donnees["mode_remise"],
+            ville=donnees["ville"],
+            quartier=donnees["quartier"],
+            repere=donnees["repere"],
+            latitude=donnees.get("latitude"),
+            longitude=donnees.get("longitude"),
+            telephone_contact=donnees["telephone_contact"],
             code_parrainage_utilise=code_applique,
         )
         Paiement.objects.create(
             commande=commande,
-            methode=Commande.ModePaiement.COD,
+            methode=donnees["mode_paiement"],
+            operateur=donnees.get("operateur"),
             montant=commande.montant_total,
             statut=Paiement.Statut.EN_ATTENTE,
         )
         Livraison.objects.create(commande=commande, qr_code=_generer_qr_code())
 
-        annonce.statut = Annonce.Statut.VENDUE
+        annonce.statut = Annonce.Statut.RESERVEE
         annonce.save(update_fields=["statut", "updated_at"])
 
     return commande, message

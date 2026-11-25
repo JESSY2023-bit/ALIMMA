@@ -1,6 +1,7 @@
 """Vues authentifiées de gestion du panier Redis."""
 from drf_spectacular.utils import OpenApiParameter, OpenApiTypes, extend_schema
-from django.db.models import Q
+from django.db.models import Prefetch, Q
+from django.shortcuts import get_object_or_404
 from rest_framework import status
 from rest_framework.exceptions import NotFound, ValidationError
 from rest_framework.permissions import IsAuthenticated
@@ -13,11 +14,13 @@ from apps.catalogue.models import Annonce
 from .serializers import (
     CommandeCreationSerializer,
     CommandeSerializer,
+    MotifCommandeSerializer,
     PanierArticleEcritureSerializer,
     PanierQuantiteSerializer,
     PanierSerializer,
 )
-from .models import Commande
+from .etats import transitionner
+from .models import Commande, HistoriqueStatutCommande
 from .services_commandes import creer_commande
 from .services import construire_panier, enregistrer_contenu, lire_contenu
 
@@ -165,7 +168,14 @@ class CommandesView(APIView):
         if statut and statut not in Commande.Statut.values:
             raise ValidationError({"statut": "Statut de commande invalide."})
 
-        commandes = Commande.objects.order_by("-created_at")
+        commandes = Commande.objects.order_by("-created_at").select_related(
+            "annonce", "acheteur", "vendeur", "livraison"
+        ).prefetch_related(
+            Prefetch(
+                "historique_statuts",
+                queryset=HistoriqueStatutCommande.objects.select_related("acteur"),
+            )
+        )
         if role == "acheteur":
             commandes = commandes.filter(acheteur=request.user)
         elif role == "vendeur":
@@ -185,10 +195,9 @@ class CommandesView(APIView):
             404: ErreurSerializer,
             409: ErreurSerializer,
             422: ErreurSerializer,
-            501: ErreurSerializer,
         },
         operation_id="commandes_create",
-        summary="Passer une commande COD",
+        summary="Passer une commande d'achat direct",
     )
     def post(self, request):
         """Crée la commande, le paiement et la livraison dans une transaction atomique."""
@@ -202,3 +211,77 @@ class CommandesView(APIView):
         if message:
             donnees_reponse["message"] = message
         return Response(donnees_reponse, status=status.HTTP_201_CREATED)
+
+
+def commande_visible_pour(utilisateur, commande_id):
+    """Retourne une commande visible ou une 404 afin de ne pas révéler son existence."""
+    queryset = Commande.objects.select_related(
+        "annonce", "acheteur", "vendeur", "livraison"
+    ).prefetch_related(
+        Prefetch(
+            "historique_statuts",
+            queryset=HistoriqueStatutCommande.objects.select_related("acteur"),
+        )
+    )
+    if getattr(utilisateur, "role", None) in {"moderateur", "administrateur"}:
+        return get_object_or_404(queryset, pk=commande_id)
+    filtres = (
+        Q(acheteur=utilisateur)
+        | Q(vendeur=utilisateur)
+        | Q(livraison__livreur=utilisateur)
+    )
+    return get_object_or_404(queryset, filtres, pk=commande_id)
+
+
+class CommandeDetailView(APIView):
+    """Expose le suivi d'une commande à ses seuls participants métier."""
+
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        tags=["Panier & Commandes"],
+        responses={200: CommandeSerializer, 401: ErreurSerializer, 404: ErreurSerializer},
+        operation_id="commandes_retrieve",
+        summary="Consulter le détail et l'historique d'une commande",
+    )
+    def get(self, request, id):
+        """Retourne la commande si l'acteur peut légitimement en suivre l'état."""
+        return Response(CommandeSerializer(commande_visible_pour(request.user, id)).data)
+
+
+class CommandeActionView(APIView):
+    """Délègue les actions HTTP à la machine d'états transactionnelle."""
+
+    permission_classes = [IsAuthenticated]
+    actions = {
+        "accepter": Commande.Statut.ACCEPTEE,
+        "refuser": Commande.Statut.ANNULEE,
+        "annuler": Commande.Statut.ANNULEE,
+        "expedier": Commande.Statut.EXPEDIEE,
+        "confirmer-reception": Commande.Statut.TERMINEE,
+    }
+
+    @extend_schema(
+        tags=["Panier & Commandes"],
+        request=MotifCommandeSerializer,
+        responses={
+            200: CommandeSerializer,
+            401: ErreurSerializer,
+            404: ErreurSerializer,
+            409: ErreurSerializer,
+            422: ErreurSerializer,
+        },
+        summary="Faire évoluer une commande dans son cycle d'achat direct",
+    )
+    def post(self, request, id, action):
+        """Valide le motif du refus puis applique la transition demandée."""
+        commande = commande_visible_pour(request.user, id)
+        motif = None
+        if action == "refuser":
+            serializer = MotifCommandeSerializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+            motif = serializer.validated_data["motif"]
+        commande = transitionner(commande, self.actions[action], request.user, motif)
+        # La transition recharge l'objet verrouillé ; ce nouveau chargement
+        # préserve le format complet, notamment l'historique fraîchement créé.
+        return Response(CommandeSerializer(commande_visible_pour(request.user, commande.id)).data)

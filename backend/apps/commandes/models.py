@@ -25,6 +25,14 @@ class StatutCommandeField(models.CharField):
         return "statut_commande"
 
 
+class ModeRemiseField(models.CharField):
+    """Préserve l'énumération PostgreSQL ``mode_remise``."""
+
+    def db_type(self, connection):
+        """Déclare le type enum utilisé par l'adresse structurée."""
+        return "mode_remise"
+
+
 class ModePaiementField(models.CharField):
     """Préserve le type PostgreSQL ``mode_paiement`` du schéma de référence."""
 
@@ -74,13 +82,19 @@ class Commande(models.Model):
 
     class Statut(models.TextChoices):
         ATTENTE_PAIEMENT = "attente_paiement", "En attente de paiement"
-        CONFIRMEE = "confirmee", "Confirmée"
-        PAYEE = "payee", "Payée"
-        PREPAREE = "preparee", "Préparée"
-        EN_TRANSIT = "en_transit", "En transit"
+        ATTENTE_VENDEUR = "attente_vendeur", "En attente du vendeur"
+        ACCEPTEE = "acceptee", "Acceptée"
+        EXPEDIEE = "expediee", "Expédiée"
         LIVREE = "livree", "Livrée"
-        ANNULEE = "annulee", "Annulée"
+        ECHEC_LIVRAISON = "echec_livraison", "Échec de livraison"
         LITIGE = "litige", "Litige"
+        TERMINEE = "terminee", "Terminée"
+        ANNULEE = "annulee", "Annulée"
+        REMBOURSEE = "remboursee", "Remboursée"
+
+    class ModeRemise(models.TextChoices):
+        MAIN_PROPRE = "main_propre", "Remise en main propre"
+        LIVRAISON_VENDEUR = "livraison_vendeur", "Livraison par le vendeur"
 
     acheteur = models.ForeignKey(
         "accounts.Utilisateur", on_delete=models.DO_NOTHING, related_name="commandes_acheteur"
@@ -99,8 +113,13 @@ class Commande(models.Model):
     statut = StatutCommandeField(
         max_length=20, choices=Statut.choices, default=Statut.ATTENTE_PAIEMENT
     )
-    adresse_livraison = models.TextField()
-    ville_livraison = models.CharField(max_length=100)
+    mode_remise = ModeRemiseField(max_length=20, choices=ModeRemise.choices)
+    ville = models.CharField(max_length=100)
+    quartier = models.CharField(max_length=100)
+    repere = models.CharField(max_length=200)
+    latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+    longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+    telephone_contact = models.CharField(max_length=20)
     code_parrainage_utilise = models.CharField(max_length=12, null=True, blank=True)
     created_at = models.DateTimeField(default=timezone.now, db_default=Now())
     updated_at = models.DateTimeField(auto_now=True, db_default=Now())
@@ -111,6 +130,32 @@ class Commande(models.Model):
             models.Index(fields=["acheteur"], name="idx_commandes_acheteur"),
             models.Index(fields=["vendeur"], name="idx_commandes_vendeur"),
             models.Index(fields=["statut"], name="idx_commandes_statut"),
+        ]
+
+
+class HistoriqueStatutCommande(models.Model):
+    """Trace immuable des changements d'état d'une commande."""
+
+    commande = models.ForeignKey(
+        Commande, on_delete=models.CASCADE, related_name="historique_statuts"
+    )
+    ancien_statut = StatutCommandeField(max_length=20, choices=Commande.Statut.choices)
+    nouveau_statut = StatutCommandeField(max_length=20, choices=Commande.Statut.choices)
+    acteur = models.ForeignKey(
+        "accounts.Utilisateur",
+        on_delete=models.DO_NOTHING,
+        related_name="transitions_commandes",
+        null=True,
+        blank=True,
+    )
+    motif = models.TextField(null=True, blank=True)
+    created_at = models.DateTimeField(default=timezone.now, db_default=Now())
+
+    class Meta:
+        db_table = "historique_statuts_commandes"
+        ordering = ("created_at", "id")
+        indexes = [
+            models.Index(fields=["commande", "created_at"], name="idx_hist_cmd_date"),
         ]
 
 

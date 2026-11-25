@@ -54,16 +54,19 @@ def corps(annonce_id, **complement):
     resultat = {
         "annonce_id": annonce_id,
         "mode_paiement": "cod",
-        "adresse_livraison": "Bonapriso, rue 1",
-        "ville_livraison": "Douala",
+        "mode_remise": "livraison_vendeur",
+        "ville": "Douala",
+        "quartier": "Bonapriso",
+        "repere": "Rue 1",
+        "telephone_contact": "+237670000502",
     }
     resultat.update(complement)
     return resultat
 
 
 @pytest.mark.django_db
-def test_commande_cod_valide_cree_toutes_les_entites(client, acteurs, annonce):
-    """Une commande COD confirme l'achat et crée paiement, livraison et QR unique."""
+def test_commande_cod_valide_reserve_lannonce_et_cree_toutes_les_entites(client, acteurs, annonce):
+    """Une commande COD réserve l'article jusqu'à son issue définitive."""
     response = client.post(
         "/v1/commandes",
         corps(annonce.id),
@@ -76,13 +79,14 @@ def test_commande_cod_valide_cree_toutes_les_entites(client, acteurs, annonce):
     assert response.status_code == 201
     assert commande.acheteur == acteurs[1]
     assert commande.vendeur == acteurs[0]
-    assert commande.statut == Commande.Statut.CONFIRMEE
+    assert commande.quantite == 1
+    assert commande.statut == Commande.Statut.ATTENTE_VENDEUR
     assert commande.montant_total == 10000
     assert commande.paiement.methode == Commande.ModePaiement.COD
     assert commande.paiement.statut == Paiement.Statut.EN_ATTENTE
     assert commande.livraison.statut == Livraison.Statut.PREPAREE
     assert commande.livraison.qr_code
-    assert annonce.statut == Annonce.Statut.VENDUE
+    assert annonce.statut == Annonce.Statut.RESERVEE
 
 
 @pytest.mark.django_db
@@ -135,8 +139,8 @@ def test_commandes_concurrentes_ne_peuvent_vendre_une_annonce_qu_une_fois(
 
 
 @pytest.mark.django_db
-def test_commande_refuse_auto_achat_et_mobile_money(client, acteurs, annonce):
-    """Le vendeur ne peut pas s'acheter et Mobile Money est explicitement indisponible."""
+def test_commande_refuse_auto_achat_et_mobile_money_attend_le_paiement(client, acteurs, annonce):
+    """Le vendeur ne s'achète pas et MoMo démarre dans l'état de paiement."""
     auto_achat = client.post(
         "/v1/commandes", corps(annonce.id), content_type="application/json", **headers(acteurs[0])
     )
@@ -148,8 +152,8 @@ def test_commande_refuse_auto_achat_et_mobile_money(client, acteurs, annonce):
     )
 
     assert auto_achat.status_code == 422
-    assert mobile_money.status_code == 501
-    assert Commande.objects.count() == 0
+    assert mobile_money.status_code == 201
+    assert Commande.objects.get().statut == Commande.Statut.ATTENTE_PAIEMENT
 
 
 @pytest.mark.django_db
