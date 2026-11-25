@@ -55,6 +55,8 @@ POSTGRES_SSLMODE=prefer
 REDIS_URL=redis://redis:6379/1
 CORS_ALLOWED_ORIGINS=http://localhost:5173,http://localhost:3000
 FEATURE_2FA_ENABLED=false
+# Origine affichée dans Swagger ; ne pas ajouter /v1, déjà présent dans les chemins.
+API_PUBLIC_URL=https://alimma.onrender.com
 
 # Le développement garde les fichiers en local. En production Render, utilisez
 # un bucket Cloudflare R2 ou AWS S3 afin de survivre aux redéploiements.

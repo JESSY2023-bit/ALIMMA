@@ -152,6 +152,12 @@ class ErreurSerializer(serializers.Serializer):
 
     code = serializers.CharField()
     message = serializers.CharField()
+    # Les erreurs de validation exposent les messages par champ, sans modifier
+    # les deux attributs historiques ``code`` et ``message``.
+    details = serializers.DictField(
+        child=serializers.ListField(child=serializers.CharField()),
+        required=False,
+    )
 
 
 class LoginSerializer(serializers.Serializer):

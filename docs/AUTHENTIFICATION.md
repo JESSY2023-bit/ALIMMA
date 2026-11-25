@@ -60,6 +60,26 @@ Les codes ci-dessus sont ceux fournis par `config.exceptions.api_exception_handl
 le backend ne distingue pas publiquement un compte suspendu d'identifiants
 incorrects, ni un refresh blacklisté d'un refresh invalide.
 
+## Erreurs de validation (422)
+
+Les erreurs de validation utilisent toujours `code` et `message`. Elles
+incluent aussi `details`, qui permet d'associer précisément le message à un
+champ du formulaire :
+
+```json
+{
+  "code": "VALIDATION_ERROR",
+  "message": "Ce champ est obligatoire.",
+  "details": {
+    "telephone": ["Ce champ est obligatoire."]
+  }
+}
+```
+
+Le frontend doit afficher `details[nom_du_champ]` près du champ concerné.
+L'e-mail est facultatif à l'inscription, mais il doit être unique lorsqu'il
+est fourni.
+
 ## Stockage et concurrence
 
 - Conserver l'access token en mémoire (par exemple dans le state Redux).

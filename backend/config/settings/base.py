@@ -177,6 +177,17 @@ AUTH_USER_MODEL = "accounts.Utilisateur"
 PASSWORD_HASHERS = ["django.contrib.auth.hashers.BCryptSHA256PasswordHasher"]
 FEATURE_2FA_ENABLED = os.environ.get("FEATURE_2FA_ENABLED", "false").lower() == "true"
 
+# Les chemins OpenAPI sont déjà préfixés par ``/v1``. Le serveur exposé à
+# Swagger doit donc être une origine seule, sans ce suffixe, pour éviter que
+# le bouton « Try it out » ne construise ``/v1/v1/...``.
+API_PUBLIC_URL = os.environ.get(
+    "API_PUBLIC_URL", "https://alimma.onrender.com"
+).strip().rstrip("/")
+if API_PUBLIC_URL.endswith("/v1"):
+    # Cette normalisation protège la documentation si une ancienne valeur
+    # incluant le préfixe API demeure dans l'environnement de déploiement.
+    API_PUBLIC_URL = API_PUBLIC_URL[:-3]
+
 # L'API est protégée par JWT par défaut ; les vues publiques déclarent
 # explicitement ``AllowAny`` afin que leur exposition soit visible au code.
 REST_FRAMEWORK = {
@@ -281,8 +292,8 @@ SPECTACULAR_SETTINGS = {
     "SERVE_PERMISSIONS": ["rest_framework.permissions.AllowAny"],
     "SERVE_AUTHENTICATION": [],
     "SERVERS": [
-        {"url": "https://api.alimma.cm/v1", "description": "Production"},
-        {"url": "https://staging-api.alimma.cm/v1", "description": "Staging"},
+        {"url": API_PUBLIC_URL, "description": "Déployé, Render"},
+        {"url": "http://localhost:8000", "description": "Local"},
     ],
     "TAGS": [
         {"name": "Auth"},

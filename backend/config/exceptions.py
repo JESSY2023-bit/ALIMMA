@@ -12,6 +12,29 @@ def _first_message(detail):
     return str(detail)
 
 
+def _messages_de_validation(detail):
+    """Transforme les erreurs DRF d'un champ en liste de messages sérialisables."""
+    if isinstance(detail, dict):
+        # Une erreur imbriquée ne peut pas être représentée directement dans
+        # le contrat ``{champ: [messages]}``. Le premier message reste utile
+        # au frontend tout en conservant le nom du champ de niveau supérieur.
+        return [_first_message(detail)]
+    if isinstance(detail, (list, tuple)):
+        return [str(message) for message in detail]
+    return [str(detail)]
+
+
+def _details_de_validation(detail):
+    """Construit ``{nom_du_champ: [messages]}`` à partir du détail DRF."""
+    if isinstance(detail, dict):
+        return {
+            str(champ): _messages_de_validation(messages)
+            for champ, messages in detail.items()
+        }
+    # Les erreurs sans champ explicite restent exploitables par le client.
+    return {"non_field_errors": _messages_de_validation(detail)}
+
+
 def api_exception_handler(exc, context):
     """Convertit les exceptions DRF en ``{code, message}``."""
     # Le gestionnaire DRF conserve le traitement standard des exceptions qu'il
@@ -41,6 +64,14 @@ def api_exception_handler(exc, context):
     if response.status_code == 400:
         # Le contrat ALIMMA expose les erreurs de validation en 422.
         response.status_code = 422
+        response.data = {
+            "code": "VALIDATION_ERROR",
+            # Le message historique est conservé pour les clients existants ;
+            # ``details`` apporte le nom précis du champ au nouveau frontend.
+            "message": _first_message(detail),
+            "details": _details_de_validation(detail),
+        }
+        return response
     default_code = "VALIDATION_ERROR" if response.status_code == 422 else "API_ERROR"
     code = default_code if response.status_code == 422 else getattr(
         exc, "default_code", default_code

@@ -34,6 +34,17 @@ def test_generated_schema_marks_login_and_refresh_as_public():
     assert schema["paths"]["/v1/auth/refresh"]["post"]["security"] == []
 
 
+def test_generated_schema_does_not_duplicate_api_prefix_in_servers_or_paths():
+    """Swagger combine une origine sans ``/v1`` avec les chemins de l'API."""
+    schema = SchemaGenerator().get_schema(request=None, public=True)
+    server_urls = [server["url"] for server in schema["servers"]]
+
+    assert all("alimma.cm" not in url for url in server_urls)
+    assert all(not url.rstrip("/").endswith("/v1") for url in server_urls)
+    assert all(path.startswith("/v1/") for path in schema["paths"])
+    assert all(not path.startswith("/v1/v1") for path in schema["paths"])
+
+
 def test_generated_schema_documente_la_limitation_de_debit():
     """Les routes à quotas exposent la réponse 429 normalisée aux clients."""
     schema = SchemaGenerator().get_schema(request=None, public=True)

@@ -6,10 +6,10 @@ info:
   contact:
     name: Équipe technique ALIMMA
 servers:
-  - url: https://api.alimma.cm/v1
-    description: Production
-  - url: https://staging-api.alimma.cm/v1
-    description: Staging
+  - url: https://alimma.onrender.com
+    description: Déployé, Render
+  - url: http://localhost:8000
+    description: Local
 
 tags:
   - name: Auth
@@ -43,6 +43,14 @@ components:
       properties:
         code: { type: string, example: "VALIDATION_ERROR" }
         message: { type: string, example: "Le champ 'prix' est requis." }
+        details:
+          type: object
+          description: Présent pour les erreurs de validation ; messages regroupés par champ.
+          additionalProperties:
+            type: array
+            items: { type: string }
+          example:
+            telephone: ["Ce champ est obligatoire."]
 
     Utilisateur:
       type: object
@@ -444,7 +452,7 @@ security:
 paths:
 
   # ---------------------------------------------------------------- AUTH
-  /auth/inscription:
+  /v1/auth/inscription:
     post:
       tags: [Auth]
       summary: Créer un compte utilisateur
@@ -463,7 +471,7 @@ paths:
         '422': { $ref: '#/components/responses/ValidationError' }
         '429': { $ref: '#/components/responses/RateLimited' }
 
-  /auth/login:
+  /v1/auth/login:
     post:
       tags: [Auth]
       summary: Connexion (étape 1) — déclenche l'envoi du code OTP si 2FA activée
@@ -490,7 +498,7 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '429': { $ref: '#/components/responses/RateLimited' }
 
-  /auth/verify-otp:
+  /v1/auth/verify-otp:
     post:
       tags: [Auth]
       summary: Connexion (étape 2) — validation du code OTP, émission du JWT
@@ -509,7 +517,7 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '429': { $ref: '#/components/responses/RateLimited' }
 
-  /auth/refresh:
+  /v1/auth/refresh:
     post:
       tags: [Auth]
       summary: Rafraîchir le token d'accès
@@ -537,7 +545,7 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '429': { $ref: '#/components/responses/RateLimited' }
 
-  /auth/logout:
+  /v1/auth/logout:
     post:
       tags: [Auth]
       summary: Déconnexion (invalidation du refresh token)
@@ -555,7 +563,7 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
 
   # ---------------------------------------------------------- UTILISATEURS
-  /utilisateurs/moi:
+  /v1/utilisateurs/moi:
     get:
       tags: [Utilisateurs]
       summary: Récupérer le profil de l'utilisateur connecté
@@ -585,7 +593,7 @@ paths:
         '422': { $ref: '#/components/responses/ValidationError' }
         '429': { $ref: '#/components/responses/RateLimited' }
 
-  /utilisateurs/moi/mot-de-passe:
+  /v1/utilisateurs/moi/mot-de-passe:
     put:
       tags: [Utilisateurs]
       summary: Changer le mot de passe
@@ -599,7 +607,7 @@ paths:
         '422': { $ref: '#/components/responses/ValidationError' }
         '429': { $ref: '#/components/responses/RateLimited' }
 
-  /utilisateurs/{id}:
+  /v1/utilisateurs/{id}:
     get:
       tags: [Utilisateurs]
       summary: Profil public d'un compte ayant au moins une annonce (404 sinon)
@@ -619,7 +627,7 @@ paths:
         '429': { $ref: '#/components/responses/RateLimited' }
 
   # ------------------------------------------------------------- ANNONCES
-  /annonces:
+  /v1/annonces:
     get:
       tags: [Annonces]
       summary: Lister / rechercher les annonces
@@ -679,7 +687,7 @@ paths:
         '422': { $ref: '#/components/responses/ValidationError' }
         '429': { $ref: '#/components/responses/RateLimited' }
 
-  /annonces/carte:
+  /v1/annonces/carte:
     get:
       tags: [Recherche]
       summary: Recherche géographique des annonces (pour affichage carte)
@@ -706,7 +714,7 @@ paths:
                 items: { $ref: '#/components/schemas/Annonce' }
         '429': { $ref: '#/components/responses/RateLimited' }
 
-  /annonces/{id}:
+  /v1/annonces/{id}:
     get:
       tags: [Annonces]
       summary: Détail d'une annonce (incrémente nb_vues)
@@ -758,7 +766,7 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
 
-  /annonces/{id}/pause:
+  /v1/annonces/{id}/pause:
     post:
       tags: [Annonces]
       summary: Mettre une annonce en pause / la republier
@@ -775,7 +783,7 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
 
-  /utilisateurs/moi/annonces:
+  /v1/utilisateurs/moi/annonces:
     get:
       tags: [Annonces]
       summary: Lister mes annonces
@@ -790,7 +798,7 @@ paths:
                 items: { $ref: '#/components/schemas/Annonce' }
         '401': { $ref: '#/components/responses/Unauthorized' }
 
-  /annonces/{id}/commentaires:
+  /v1/annonces/{id}/commentaires:
     get:
       tags: [Social]
       summary: Lister les commentaires publics d'une annonce
@@ -815,7 +823,7 @@ paths:
         '201': { description: Commentaire créé }
 
   # -------------------------------------------------------------- ENCHÈRES
-  /annonces/{id}/encheres/offres:
+  /v1/annonces/{id}/encheres/offres:
     post:
       tags: [Enchères]
       summary: Placer une offre sur une enchère en cours
@@ -841,7 +849,7 @@ paths:
         '200': { description: "Liste des offres, triées par montant décroissant" }
 
   # ------------------------------------------------------ PANIER & COMMANDES
-  /panier:
+  /v1/panier:
     get:
       tags: [Panier & Commandes]
       summary: Consulter mon panier
@@ -859,7 +867,7 @@ paths:
         '204': { description: Panier vidé }
         '401': { $ref: '#/components/responses/Unauthorized' }
 
-  /panier/articles:
+  /v1/panier/articles:
     post:
       tags: [Panier & Commandes]
       summary: Ajouter un article au panier
@@ -878,7 +886,7 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '422': { $ref: '#/components/responses/ValidationError' }
 
-  /panier/articles/{annonce_id}:
+  /v1/panier/articles/{annonce_id}:
     patch:
       tags: [Panier & Commandes]
       summary: Modifier la quantité d'un article
@@ -908,7 +916,7 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
 
-  /commandes:
+  /v1/commandes:
     get:
       tags: [Panier & Commandes]
       summary: Lister mes commandes (achats ou ventes selon le rôle)
@@ -954,7 +962,7 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Erreur' }
 
-  /commandes/{id}:
+  /v1/commandes/{id}:
     get:
       tags: [Panier & Commandes]
       summary: Détail d'une commande (suivi de statut)
@@ -967,7 +975,7 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Commande' }
 
-  /commandes/{id}/annuler:
+  /v1/commandes/{id}/annuler:
     post:
       tags: [Panier & Commandes]
       summary: Annuler une commande (si statut le permet)
@@ -977,7 +985,7 @@ paths:
         '200': { description: Commande annulée }
 
   # -------------------------------------------------------------- PAIEMENTS
-  /paiements/mobile-money/initier:
+  /v1/paiements/mobile-money/initier:
     post:
       tags: [Paiements]
       summary: Initier un paiement Mobile Money (MTN/Orange) pour une commande
@@ -994,7 +1002,7 @@ paths:
       responses:
         '202': { description: "Demande envoyée à l'opérateur, en attente de validation OTP côté utilisateur" }
 
-  /paiements/mobile-money/callback:
+  /v1/paiements/mobile-money/callback:
     post:
       tags: [Paiements]
       summary: Webhook de confirmation appelé par l'API MTN/Orange
@@ -1006,7 +1014,7 @@ paths:
       responses:
         '200': { description: Callback traité }
 
-  /paiements/{id}/confirmer-especes:
+  /v1/paiements/{id}/confirmer-especes:
     post:
       tags: [Paiements]
       summary: Confirmer la réception du paiement en espèces (rôle Livreur)
@@ -1016,7 +1024,7 @@ paths:
         '200': { description: Paiement COD confirmé }
 
   # -------------------------------------------------------------- LIVRAISON
-  /livreur/colis:
+  /v1/livreur/colis:
     get:
       tags: [Livraison]
       summary: Liste des colis assignés au livreur connecté
@@ -1027,7 +1035,7 @@ paths:
       responses:
         '200': { description: Liste des livraisons }
 
-  /livreur/colis/{id}/scan:
+  /v1/livreur/colis/{id}/scan:
     post:
       tags: [Livraison]
       summary: Scanner le QR code d'un colis pour faire progresser son statut
@@ -1042,7 +1050,7 @@ paths:
       responses:
         '200': { description: Statut de livraison mis à jour }
 
-  /livreur/colis/{id}/statut:
+  /v1/livreur/colis/{id}/statut:
     patch:
       tags: [Livraison]
       summary: Mettre à jour manuellement le statut d'un colis
@@ -1059,7 +1067,7 @@ paths:
         '200': { description: Statut mis à jour }
 
   # ------------------------------------------------------ AVIS & RÉPUTATION
-  /avis:
+  /v1/avis:
     post:
       tags: [Avis & Réputation]
       summary: Laisser un avis sur un vendeur après une commande livrée
@@ -1080,7 +1088,7 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Avis' }
 
-  /utilisateurs/{id}/avis:
+  /v1/utilisateurs/{id}/avis:
     get:
       tags: [Avis & Réputation]
       summary: Lister les avis reçus par un vendeur
@@ -1097,7 +1105,7 @@ paths:
                 items: { $ref: '#/components/schemas/Avis' }
 
   # ------------------------------------------------------------------ SOCIAL
-  /follows/{vendeur_id}:
+  /v1/follows/{vendeur_id}:
     post:
       tags: [Social]
       summary: Suivre un vendeur
@@ -1113,7 +1121,7 @@ paths:
       responses:
         '204': { description: Abonnement supprimé }
 
-  /favoris:
+  /v1/favoris:
     get:
       tags: [Social]
       summary: Lister mes annonces favorites
@@ -1131,7 +1139,7 @@ paths:
       responses:
         '204': { description: Ajouté aux favoris }
 
-  /favoris/{annonce_id}:
+  /v1/favoris/{annonce_id}:
     delete:
       tags: [Social]
       summary: Retirer une annonce des favoris
@@ -1140,7 +1148,7 @@ paths:
       responses:
         '204': { description: Retiré des favoris }
 
-  /alertes:
+  /v1/alertes:
     get:
       tags: [Social]
       summary: Lister mes alertes de recherche
@@ -1161,7 +1169,7 @@ paths:
       responses:
         '201': { description: Alerte créée }
 
-  /parrainage/mon-code:
+  /v1/parrainage/mon-code:
     get:
       tags: [Social]
       summary: Récupérer mon code de parrainage et mes points cumulés
@@ -1169,14 +1177,14 @@ paths:
         '200': { description: Code + statistiques de parrainage }
 
   # -------------------------------------------------------------- VENDEUR PRO
-  /vendeur/boutique:
+  /v1/vendeur/boutique:
     patch:
       tags: [Vendeur Pro]
       summary: Personnaliser sa boutique (logo, bannière, description)
       responses:
         '200': { description: Boutique mise à jour }
 
-  /vendeur/annonces/import:
+  /v1/vendeur/annonces/import:
     post:
       tags: [Vendeur Pro]
       summary: Importer un lot d'annonces via fichier CSV/Excel (max 500 lignes)
@@ -1190,7 +1198,7 @@ paths:
       responses:
         '202': { description: "Import en cours de traitement (traitement asynchrone)" }
 
-  /vendeur/commandes/export:
+  /v1/vendeur/commandes/export:
     get:
       tags: [Vendeur Pro]
       summary: Exporter les commandes de la boutique (CSV) pour la comptabilité
@@ -1208,7 +1216,7 @@ paths:
             text/csv:
               schema: { type: string }
 
-  /vendeur/statistiques:
+  /v1/vendeur/statistiques:
     get:
       tags: [Vendeur Pro]
       summary: Statistiques avancées (ventes, CA, taux de conversion, provenance)
@@ -1219,7 +1227,7 @@ paths:
       responses:
         '200': { description: Statistiques agrégées }
 
-  /vendeur/promotions:
+  /v1/vendeur/promotions:
     get:
       tags: [Vendeur Pro]
       summary: Lister mes codes promo boutique
@@ -1242,7 +1250,7 @@ paths:
         '201': { description: Code promo créé }
 
   # -------------------------------------------------------------- MODÉRATION
-  /moderation/annonces:
+  /v1/moderation/annonces:
     get:
       tags: [Modération]
       summary: Lister les annonces en attente de modération
@@ -1257,7 +1265,7 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
 
-  /moderation/annonces/{id}/decision:
+  /v1/moderation/annonces/{id}/decision:
     post:
       tags: [Modération]
       summary: Valider ou rejeter une annonce
@@ -1280,7 +1288,7 @@ paths:
         '409': { $ref: '#/components/responses/Conflict' }
         '422': { $ref: '#/components/responses/ValidationError' }
 
-  /moderation/signalements:
+  /v1/moderation/signalements:
     get:
       tags: [Modération]
       summary: Lister les signalements (annonces, utilisateurs, commentaires)
@@ -1294,7 +1302,7 @@ paths:
       responses:
         '200': { description: Liste des signalements }
 
-  /moderation/signalements/{id}/traiter:
+  /v1/moderation/signalements/{id}/traiter:
     post:
       tags: [Modération]
       summary: Traiter un signalement
@@ -1311,7 +1319,7 @@ paths:
       responses:
         '200': { description: Signalement traité }
 
-  /moderation/commentaires/{id}:
+  /v1/moderation/commentaires/{id}:
     delete:
       tags: [Modération]
       summary: Masquer / supprimer un commentaire inapproprié
@@ -1321,7 +1329,7 @@ paths:
         '204': { description: Commentaire masqué }
 
   # ----------------------------------------------------------- ADMINISTRATION
-  /admin/utilisateurs:
+  /v1/admin/utilisateurs:
     get:
       tags: [Administration]
       summary: Lister / rechercher les utilisateurs
@@ -1350,7 +1358,7 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
 
-  /admin/utilisateurs/{id}/role:
+  /v1/admin/utilisateurs/{id}/role:
     patch:
       tags: [Administration]
       summary: Modifier le rôle d'un utilisateur (Premium, Modérateur, Livreur…)
@@ -1376,7 +1384,7 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '422': { $ref: '#/components/responses/ValidationError' }
 
-  /admin/utilisateurs/{id}/suspendre:
+  /v1/admin/utilisateurs/{id}/suspendre:
     post:
       tags: [Administration]
       summary: Suspendre ou réactiver un compte utilisateur
@@ -1392,7 +1400,7 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
 
-  /admin/categories:
+  /v1/admin/categories:
     get:
       tags: [Administration]
       summary: Lister les catégories et sous-catégories
@@ -1424,7 +1432,7 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '422': { $ref: '#/components/responses/ValidationError' }
 
-  /admin/categories/{id}:
+  /v1/admin/categories/{id}:
     patch:
       tags: [Administration]
       summary: Modifier une catégorie
@@ -1457,7 +1465,7 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { description: Suppression bloquée par des rattachements }
 
-  /admin/promotions:
+  /v1/admin/promotions:
     post:
       tags: [Administration]
       summary: Créer un code promo global (applicable sur tout le site)
@@ -1474,7 +1482,7 @@ paths:
       responses:
         '201': { description: Promotion globale créée }
 
-  /admin/statistiques:
+  /v1/admin/statistiques:
     get:
       tags: [Administration]
       summary: Statistiques globales de la plateforme
@@ -1491,7 +1499,7 @@ paths:
                   nb_commandes: { type: integer }
                   chiffre_affaires_total: { type: number }
 
-  /admin/parametres:
+  /v1/admin/parametres:
     get:
       tags: [Administration]
       summary: Consulter les paramètres globaux du site
@@ -1507,7 +1515,7 @@ paths:
       responses:
         '200': { description: Paramètres mis à jour }
 
-  /admin/moderateurs/{id}/journal:
+  /v1/admin/moderateurs/{id}/journal:
     get:
       tags: [Administration]
       summary: Consulter le journal d'actions d'un modérateur (supervision)
