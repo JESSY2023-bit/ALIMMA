@@ -1,16 +1,10 @@
 import { Icon } from "./Icon";
-
-export function getPasswordScore(v) {
-  if (!v) return 0;
-  if (v.length < 8 || !/\d/.test(v)) return 1;
-  const rich = v.length >= 10 && (/[A-Z]/.test(v) || /[^A-Za-z0-9]/.test(v));
-  return rich ? 3 : 2;
-}
+import { getPasswordScore } from "./passwordStrengthUtils";
 
 const LABELS = ["", "Faible", "Correct · ajoutez une majuscule ou un symbole pour le renforcer", "Solide"];
 
 /** Jauge à 3 niveaux. rules : [{ label, ok }] pour afficher la liste de critères. */
-export function PasswordStrength({ value, rules }) {
+function PasswordStrength({ value, rules }) {
   const score = getPasswordScore(value);
   return (
     <div className="ui-strength" data-score={score}>
@@ -29,3 +23,5 @@ export function PasswordStrength({ value, rules }) {
     </div>
   );
 }
+
+export { PasswordStrength };

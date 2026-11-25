@@ -1,5 +1,6 @@
 import { forwardRef } from "react";
-import { FieldShell, useFieldA11y } from "./Field";
+import { FieldShell } from "./FieldShell";
+import { useFieldA11y } from "./fieldUtils";
 import { cx } from "./utils";
 
 export const Textarea = forwardRef(function Textarea(

@@ -1,6 +1,6 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
 import { Icon } from "./Icon";
-import { useFieldA11y } from "./Field";
+import { useFieldA11y } from "./fieldUtils";
 
 /** label peut contenir des liens. error : message sous la case. indeterminate : « Tout sélectionner ». */
 export const Checkbox = forwardRef(function Checkbox(

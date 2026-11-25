@@ -15,7 +15,8 @@ export const useLogin = () =>
 export const useRegister = () =>
   useMutation({
     mutationFn: async (userData) => {
-      const { confirmPassword, ...payload } = userData;
+      const payload = { ...userData };
+      delete payload.confirmPassword;
       const { data } = await api.post('/auth/inscription', payload);
       return data;
     },

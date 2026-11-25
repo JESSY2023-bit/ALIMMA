@@ -1,7 +1,6 @@
-import { createContext, useCallback, useContext, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { Icon } from "./Icon";
-
-const ToastContext = createContext(null);
+import { ToastContext } from "./ToastContext";
 
 /**
  * Enveloppe l’application : <ToastProvider><App /></ToastProvider>. Visible 4 s, fermable.
@@ -63,8 +62,3 @@ export function ToastProvider({ children, duration = 4000 }) {
   );
 }
 
-export function useToast() {
-  const ctx = useContext(ToastContext);
-  if (!ctx) throw new Error("useToast doit être utilisé dans <ToastProvider>.");
-  return ctx;
-}
