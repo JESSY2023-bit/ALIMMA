@@ -1,16 +1,12 @@
 """Sérialiseurs de l'inscription et du profil utilisateur."""
-import re
-
 from django.conf import settings
 from django.db import transaction
 from PIL import Image, UnidentifiedImageError
 from rest_framework import serializers
 
 from .models import Parrainage, Utilisateur
+from .utils import TELEPHONE_ERROR_MESSAGE, normaliser_telephone
 from config.media import enregistrer_image
-
-# Le format E.164 camerounais contient l'indicatif +237 suivi de neuf chiffres.
-CAMEROON_PHONE_PATTERN = re.compile(r"^\+237\d{9}$")
 
 
 class UtilisateurSerializer(serializers.ModelSerializer):
@@ -197,13 +193,11 @@ class InscriptionSerializer(serializers.Serializer):
 
     def validate_telephone(self, value):
         """Normalise un numéro local en E.164 et limite le pays au Cameroun."""
-        telephone = value.strip().replace(" ", "").replace("-", "")
-        if telephone.isdigit() and len(telephone) == 9:
-            telephone = f"+237{telephone}"
-        if not CAMEROON_PHONE_PATTERN.fullmatch(telephone):
-            raise serializers.ValidationError(
-                "Le téléphone doit être au format +237XXXXXXXXX."
-            )
+        try:
+            telephone = normaliser_telephone(value)
+        except ValueError as exc:
+            # Le message historique est préservé pour les clients existants.
+            raise serializers.ValidationError(TELEPHONE_ERROR_MESSAGE) from exc
         if Utilisateur.objects.filter(telephone=telephone).exists():
             raise serializers.ValidationError("Ce téléphone est déjà utilisé.")
         return telephone
