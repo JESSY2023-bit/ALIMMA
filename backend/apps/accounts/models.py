@@ -181,3 +181,53 @@ class Parrainage(models.Model):
 
     class Meta:
         db_table = "parrainages"
+
+
+class ProfilVendeurPro(models.Model):
+    """Extension un-à-un conservant l'historique commercial d'un vendeur pro."""
+
+    utilisateur = models.OneToOneField(
+        Utilisateur,
+        primary_key=True,
+        on_delete=models.DO_NOTHING,
+        related_name="profil_vendeur_pro",
+    )
+    siret_niu = models.CharField(max_length=50, null=True, blank=True)
+    nom_boutique = models.CharField(max_length=150)
+    logo_url = models.TextField(null=True, blank=True)
+    banniere_url = models.TextField(null=True, blank=True)
+    description_boutique = models.TextField(null=True, blank=True)
+    nb_ventes_total = models.IntegerField(default=0)
+    est_certifie = models.BooleanField(default=False)
+    date_activation = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        db_table = "profils_vendeur_pro"
+
+
+class ProfilLivreur(models.Model):
+    """Extension un-à-un des informations opérationnelles d'un livreur."""
+
+    class StatutDisponibilite(models.TextChoices):
+        """Valeurs autorisées par la contrainte SQL de disponibilité."""
+
+        DISPONIBLE = "disponible", "Disponible"
+        EN_TOURNEE = "en_tournee", "En tournée"
+        HORS_LIGNE = "hors_ligne", "Hors ligne"
+
+    utilisateur = models.OneToOneField(
+        Utilisateur,
+        primary_key=True,
+        on_delete=models.DO_NOTHING,
+        related_name="profil_livreur",
+    )
+    vehicule_info = models.CharField(max_length=100, null=True, blank=True)
+    zone_geographique = models.CharField(max_length=150, null=True, blank=True)
+    statut_disponibilite = models.CharField(
+        max_length=20,
+        choices=StatutDisponibilite.choices,
+        default=StatutDisponibilite.DISPONIBLE,
+    )
+
+    class Meta:
+        db_table = "profils_livreur"

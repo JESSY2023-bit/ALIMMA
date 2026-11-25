@@ -1,9 +1,18 @@
 """Tests de l'inscription publique des utilisateurs."""
 import pytest
+from django.core.cache import cache
 
 from apps.accounts.models import Parrainage, Utilisateur
 
 URL = "/v1/auth/inscription"
+
+
+@pytest.fixture(autouse=True)
+def vider_cache():
+    """Évite qu'un quota public d'un test n'influence le scénario suivant."""
+    cache.clear()
+    yield
+    cache.clear()
 
 
 def inscription_payload(**overrides):
@@ -41,6 +50,7 @@ def test_inscription_refuse_un_telephone_deja_utilise(client):
 
     assert response.status_code == 422
     assert response.json()["code"] == "VALIDATION_ERROR"
+    assert "telephone" in response.json()["details"]
 
 
 @pytest.mark.django_db
@@ -52,6 +62,32 @@ def test_inscription_refuse_un_email_deja_utilise(client):
 
     assert response.status_code == 422
     assert response.json()["code"] == "VALIDATION_ERROR"
+    assert "email" in response.json()["details"]
+
+
+@pytest.mark.django_db
+def test_inscription_accepte_un_email_absent(client):
+    """L'e-mail est facultatif, conformément à InscriptionRequest."""
+    payload = inscription_payload()
+    payload.pop("email")
+
+    response = client.post(URL, payload, content_type="application/json")
+
+    assert response.status_code == 201
+    assert Utilisateur.objects.get(telephone="+237670000001").email is None
+
+
+@pytest.mark.django_db
+def test_inscription_indique_le_champ_manquant_dans_details(client):
+    """Le frontend peut rattacher une erreur 422 au champ attendu."""
+    payload = inscription_payload()
+    payload.pop("telephone")
+
+    response = client.post(URL, payload, content_type="application/json")
+
+    assert response.status_code == 422
+    assert response.json()["code"] == "VALIDATION_ERROR"
+    assert response.json()["details"]["telephone"] == ["Ce champ est obligatoire."]
 
 
 @pytest.mark.django_db
@@ -73,6 +109,7 @@ def test_inscription_refuse_un_telephone_mal_formate(client):
     )
 
     assert response.status_code == 422
+    assert "telephone" in response.json()["details"]
     assert Utilisateur.objects.count() == 0
 
 

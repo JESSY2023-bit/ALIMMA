@@ -34,6 +34,36 @@ def test_generated_schema_marks_login_and_refresh_as_public():
     assert schema["paths"]["/v1/auth/refresh"]["post"]["security"] == []
 
 
+def test_generated_schema_does_not_duplicate_api_prefix_in_servers_or_paths():
+    """Swagger combine une origine sans ``/v1`` avec les chemins de l'API."""
+    schema = SchemaGenerator().get_schema(request=None, public=True)
+    server_urls = [server["url"] for server in schema["servers"]]
+
+    assert all("alimma.cm" not in url for url in server_urls)
+    assert all(not url.rstrip("/").endswith("/v1") for url in server_urls)
+    assert all(path.startswith("/v1/") for path in schema["paths"])
+    assert all(not path.startswith("/v1/v1") for path in schema["paths"])
+
+
+def test_generated_schema_documente_la_limitation_de_debit():
+    """Les routes à quotas exposent la réponse 429 normalisée aux clients."""
+    schema = SchemaGenerator().get_schema(request=None, public=True)
+
+    inscription = schema["paths"]["/v1/auth/inscription"]["post"]["responses"]
+    login = schema["paths"]["/v1/auth/login"]["post"]["responses"]
+    assert "429" in inscription
+    assert "429" in login
+
+
+def test_generated_schema_types_categories_et_images_explicitement():
+    """Les champs calculés restent des tableaux dans Swagger, pas des chaînes."""
+    schema = SchemaGenerator().get_schema(request=None, public=True)
+    components = schema["components"]["schemas"]
+
+    assert components["Categorie"]["properties"]["enfants"]["type"] == "array"
+    assert components["Annonce"]["properties"]["images"]["type"] == "array"
+
+
 def test_comparison_command_can_fail_for_a_difference(tmp_path):
     """Le mode CI retourne une erreur lorsqu'un contrat diverge."""
     reference = tmp_path / "reference.yaml"

@@ -2,6 +2,7 @@
 from datetime import timedelta
 
 import pytest
+from django.core.cache import cache as redis_cache
 from django.utils import timezone
 from rest_framework_simplejwt.tokens import AccessToken
 
@@ -39,7 +40,10 @@ class FakeCache:
 @pytest.fixture(autouse=True)
 def fake_login_cache(monkeypatch):
     """Isole chaque test du serveur Redis de développement."""
+    redis_cache.clear()
     monkeypatch.setattr("apps.accounts.services.cache", FakeCache())
+    yield
+    redis_cache.clear()
 
 
 @pytest.fixture

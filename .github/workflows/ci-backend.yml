@@ -4,11 +4,75 @@ on:
   push:
     paths:
       - "backend/**"
+      - "infra/**"
+      - ".github/workflows/ci-backend.yml"
   pull_request:
     paths:
       - "backend/**"
+      - "infra/**"
+      - ".github/workflows/ci-backend.yml"
 
 jobs:
+  migrations-check:
+    name: Check Django migrations
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    services:
+      postgres:
+        image: postgis/postgis:16-3.5-alpine
+        env:
+          POSTGRES_DB: alimma_test
+          POSTGRES_USER: alimma
+          POSTGRES_PASSWORD: alimma_test_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U alimma -d alimma_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DJANGO_SECRET_KEY: ci-test-secret-key
+      DJANGO_SETTINGS_MODULE: config.settings.dev
+      POSTGRES_DB: alimma_test
+      POSTGRES_USER: alimma
+      POSTGRES_PASSWORD: alimma_test_password
+      POSTGRES_HOST: 127.0.0.1
+      POSTGRES_PORT: 5432
+      POSTGRES_SSLMODE: prefer
+      REDIS_URL: redis://127.0.0.1:6379/1
+      MEDIA_BACKEND: local
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements/dev.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements/dev.txt
+
+      - name: Check migrations are committed
+        run: python manage.py makemigrations --check --dry-run
+
   test:
     name: Lint and test backend
     runs-on: ubuntu-latest
@@ -17,7 +81,9 @@ jobs:
         working-directory: backend
     services:
       postgres:
-        image: postgres:16-alpine
+        # Les migrations du catalogue utilisent l'extension PostGIS pour la
+        # colonne GEOGRAPHY(POINT,4326) : l'image PostgreSQL standard ne l'a pas.
+        image: postgis/postgis:16-3.5-alpine
         env:
           POSTGRES_DB: alimma_test
           POSTGRES_USER: alimma
@@ -50,6 +116,7 @@ jobs:
       POSTGRES_PORT: 5432
       POSTGRES_SSLMODE: prefer
       REDIS_URL: redis://127.0.0.1:6379/1
+      MEDIA_BACKEND: local
 
     steps:
       - name: Checkout code

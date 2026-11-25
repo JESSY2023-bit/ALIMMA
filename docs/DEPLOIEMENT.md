@@ -55,6 +55,12 @@ POSTGRES_SSLMODE=prefer
 REDIS_URL=redis://redis:6379/1
 CORS_ALLOWED_ORIGINS=http://localhost:5173,http://localhost:3000
 FEATURE_2FA_ENABLED=false
+# Origine affichée dans Swagger ; ne pas ajouter /v1, déjà présent dans les chemins.
+API_PUBLIC_URL=https://alimma.onrender.com
+
+# Le développement garde les fichiers en local. En production Render, utilisez
+# un bucket Cloudflare R2 ou AWS S3 afin de survivre aux redéploiements.
+MEDIA_BACKEND=local
 ```
 
 Les valeurs `POSTGRES_DB`, `POSTGRES_USER` et `POSTGRES_PASSWORD` de
@@ -87,6 +93,35 @@ en production, seule `ALLOWED_HOSTS` est lue.
 
 Pour la base Docker locale, `POSTGRES_SSLMODE=prefer` reste le défaut afin de
 fonctionner avec ou sans TLS.
+
+## Durcissement API et observabilité
+
+En production Render, configurez les variables suivantes dans le service
+backend. `NUM_PROXIES=1` autorise l'application à utiliser l'adresse réelle
+transmise par le proxy Render dans `X-Forwarded-For`; ne définissez jamais
+cette valeur si l'application est exposée directement à Internet.
+
+```dotenv
+NUM_PROXIES=1
+THROTTLE_INSCRIPTION_RATE=5/hour
+THROTTLE_LOGIN_RATE=10/minute
+THROTTLE_OTP_RATE=3/hour
+THROTTLE_PUBLICATION_RATE=20/day
+THROTTLE_PUBLIC_RATE=120/minute
+THROTTLE_ANON_RATE=120/minute
+THROTTLE_USER_RATE=1000/day
+LOG_LEVEL=INFO
+DJANGO_ENV=production
+SENTRY_DSN=https://cle-publique@o0.ingest.sentry.io/projet
+SENTRY_TRACES_SAMPLE_RATE=0.05
+```
+
+Une valeur vide de `SENTRY_DSN` désactive complètement Sentry. Les journaux
+sont produits au format JSON sur stdout et comprennent `request_id`; le client
+peut fournir `X-Request-ID` (128 caractères maximum) pour corréler une action,
+sinon l'API en génère un et le retourne dans l'en-tête de réponse. Les limites
+peuvent être adaptées à la charge sans redéploiement du code; une réponse 429
+utilise toujours `{ "code": "RATE_LIMITED", "message": "..." }`.
 
 ### Sauvegarde Neon
 
@@ -212,13 +247,114 @@ py manage.py compare_openapi --fail-on-diff
 docker compose --env-file infra/.env -f infra/docker-compose.yml \
   exec backend python manage.py shell
 
-# Créer un administrateur Django
+# Créer le premier administrateur ALIMMA (mot de passe demandé de façon sûre)
 docker compose --env-file infra/.env -f infra/docker-compose.yml \
-  exec backend python manage.py createsuperuser
+  exec backend python manage.py creer_administrateur \
+  --telephone +237699000001 --nom "Administrateur ALIMMA"
 ```
 
 L'administration Django est disponible sur `http://127.0.0.1:8000/admin/`
 après création d'un administrateur.
+
+## Créer le premier administrateur
+
+Le rôle métier `administrateur` est le seul niveau d'administration : il donne
+automatiquement accès à `/admin/` et aux routes `/v1/admin/*`. La commande
+`creer_administrateur` normalise un téléphone camerounais local (`699000001`
+devient `+237699000001`), demande le mot de passe de manière interactive et
+conserve une trace dans `journal_moderation`.
+
+N'utilisez pas `createsuperuser` : cette commande Django ne normalise pas le
+téléphone et peut créer un compte incapable de se connecter avec l'API ALIMMA.
+Ne passez jamais un mot de passe dans la ligne de commande. La variable
+`ALIMMA_ADMIN_PASSWORD` est réservée à une automatisation ponctuelle en CI ou
+dans un script sécurisé ; ne l'ajoutez ni à un fichier `.env`, ni à l'historique
+du shell.
+
+### Local avec Docker
+
+Depuis la racine du dépôt, simulez d'abord l'opération, puis créez le compte :
+
+```powershell
+docker compose --env-file infra/.env -f infra/docker-compose.yml exec backend `
+  python manage.py creer_administrateur --telephone 699000001 `
+  --nom "Administrateur ALIMMA" --dry-run
+
+docker compose --env-file infra/.env -f infra/docker-compose.yml exec backend `
+  python manage.py creer_administrateur --telephone 699000001 `
+  --nom "Administrateur ALIMMA"
+```
+
+Pour promouvoir avec confirmation un compte existant, ajoutez `--promouvoir`.
+Pour demander un nouveau mot de passe, ajoutez `--reinitialiser-mot-de-passe`.
+La sortie masque systématiquement le téléphone et n'affiche jamais le mot de
+passe ni son hash.
+
+### Production Neon depuis un poste local
+
+Le plan Render gratuit ne propose pas d'onglet **Shell**. Exécutez donc la
+commande depuis votre PC, dans `backend/`, avec le code correspondant exactement
+à la version déployée. Ne lancez pas `migrate` depuis le poste local.
+
+1. Depuis Neon, copiez l'URL de connexion dans une variable temporaire, puis
+   faites une sauvegarde avant toute opération :
+
+   ```powershell
+   $env:DATABASE_URL = "postgresql://..." # URL Neon, non versionnée
+   $date = Get-Date -Format yyyy-MM-dd-HHmm
+   pg_dump --format=custom --file="alimma-$date.dump" $env:DATABASE_URL
+   ```
+
+2. Définissez seulement dans ce terminal les paramètres Neon nécessaires à
+   Django. Remplacez chaque valeur par celles de **Connection Details** Neon :
+
+   ```powershell
+   $env:POSTGRES_DB = "nom_base_neon"
+   $env:POSTGRES_USER = "utilisateur_neon"
+   $env:POSTGRES_PASSWORD = "mot_de_passe_neon"
+   $env:POSTGRES_HOST = "hote-neon"
+   $env:POSTGRES_PORT = "5432"
+   $env:POSTGRES_SSLMODE = "require"
+   $env:DJANGO_SETTINGS_MODULE = "config.settings.dev"
+   ```
+
+3. Vérifiez que le code déployé correspond à la base, sans appliquer de
+   migration, puis simulez la création :
+
+   ```powershell
+   py manage.py showmigrations --plan
+   py manage.py creer_administrateur --telephone 699000001 `
+     --nom "Administrateur ALIMMA" --dry-run
+   ```
+
+4. Si le plan ne montre aucune migration non appliquée et que la simulation est
+   correcte, relancez sans `--dry-run`. Le terminal demande le mot de passe deux
+   fois sans l'afficher :
+
+   ```powershell
+   py manage.py creer_administrateur --telephone 699000001 `
+     --nom "Administrateur ALIMMA"
+   ```
+
+5. Fermez le terminal après l'opération, ou supprimez toutes les variables :
+
+   ```powershell
+   Remove-Item Env:DATABASE_URL, Env:POSTGRES_DB, Env:POSTGRES_USER, `
+     Env:POSTGRES_PASSWORD, Env:POSTGRES_HOST, Env:POSTGRES_PORT, `
+     Env:POSTGRES_SSLMODE, Env:DJANGO_SETTINGS_MODULE
+   ```
+
+Sous bash, l'équivalent temporaire est :
+
+```bash
+export POSTGRES_DB='nom_base_neon' POSTGRES_USER='utilisateur_neon'
+export POSTGRES_PASSWORD='mot_de_passe_neon' POSTGRES_HOST='hote-neon'
+export POSTGRES_PORT=5432 POSTGRES_SSLMODE=require
+python manage.py showmigrations --plan
+python manage.py creer_administrateur --telephone 699000001 --nom 'Administrateur ALIMMA' --dry-run
+python manage.py creer_administrateur --telephone 699000001 --nom 'Administrateur ALIMMA'
+unset POSTGRES_DB POSTGRES_USER POSTGRES_PASSWORD POSTGRES_HOST POSTGRES_PORT POSTGRES_SSLMODE
+```
 
 ## Frontend
 
@@ -255,6 +391,48 @@ Vercel autorisées, sans chemin `/v1`, par exemple :
 CORS_ALLOWED_ORIGINS=https://alimma.vercel.app,https://alimma-git-develop-votre-compte.vercel.app
 ```
 
+## Stockage persistant des images (Cloudflare R2 ou AWS S3)
+
+Le disque d'un service Render est éphémère. En production, configurez un
+bucket S3 compatible et utilisez `MEDIA_BACKEND=s3`. Pour Cloudflare R2,
+créez un jeton avec les droits de lecture/écriture sur le bucket, puis ajoutez
+ces variables dans Render :
+
+```dotenv
+MEDIA_BACKEND=s3
+AWS_STORAGE_BUCKET_NAME=alimma-medias
+AWS_S3_ENDPOINT_URL=https://<account-id>.r2.cloudflarestorage.com
+AWS_ACCESS_KEY_ID=...
+AWS_SECRET_ACCESS_KEY=...
+# Domaine public R2/Cloudflare CDN, sans https:// ni slash final.
+AWS_S3_CUSTOM_DOMAIN=media.exemple.com
+AWS_QUERYSTRING_AUTH=False
+```
+
+`AWS_S3_CUSTOM_DOMAIN` est facultatif : sans lui, l'URL du bucket est utilisée.
+Les fichiers sont convertis en WebP, stockés sous des UUID non devinables dans
+`annonces/<id>/` ou `profils/<id>/`.
+
+### Migration des médias existants
+
+Après avoir configuré le backend S3 et déployé le code, copiez les fichiers
+locaux encore accessibles vers le bucket. Vérifiez d'abord l'opération :
+
+```bash
+python manage.py migrer_medias --source-root /chemin/vers/media --dry-run
+```
+
+Puis exécutez-la sans `--dry-run` :
+
+```bash
+python manage.py migrer_medias --source-root /chemin/vers/media
+```
+
+La commande ne traite que les URL locales `/media/` et devient idempotente dès
+que les URL de base ont été remplacées par celles du stockage objet.
+Utilisez `--source-media-url` si vos anciennes URL locales n'emploient pas ce
+préfixe.
+
 ## Préparation de la production
 
 La configuration Compose actuelle est conçue pour le développement : elle
@@ -284,6 +462,42 @@ Après déploiement, vérifiez au minimum :
 curl -i http://votre-domaine.example/v1/schema/
 curl -i http://votre-domaine.example/v1/docs/
 ```
+
+## Rollback
+
+Un déploiement automatique ne démarre qu'après une CI GitHub Actions réussie
+sur `main`. Si une régression atteint malgré tout la production, commencez par
+vérifier l'état de la base : un rollback de code ne restaure jamais les données
+ni le schéma PostgreSQL.
+
+### Rétablir une version applicative Render
+
+1. Ouvrez le service backend dans Render, puis **Deploys**.
+2. Sélectionnez le dernier déploiement réussi et cliquez sur **Rollback**.
+3. Vérifiez `/v1/schema/`, `/v1/docs/` et le parcours concerné.
+
+Render réutilise l'artefact du déploiement cible ; son rollback depuis le
+tableau de bord désactive aussi l'auto-déploiement. Ne le réactivez qu'après
+avoir corrigé la cause. Si le déploiement voulu n'est plus dans l'historique,
+utilisez **Manual Deploy** puis **Deploy a specific commit** avec le SHA Git
+connu comme stable.
+
+Pour le frontend Vercel, ouvrez le déploiement stable dans le tableau de bord
+et utilisez **Promote to Production**, ou redéployez le commit Git stable.
+
+### Restaurer Neon avec prudence
+
+Avant toute restauration, créez une sauvegarde `pg_dump` de l'état courant et
+mettez Render en maintenance ou désactivez ses déploiements automatiques.
+Dans Neon, créez d'abord une branche depuis le point antérieur à l'incident
+(branche ou point dans le temps/PITR), puis contrôlez son schéma et ses données.
+Pointez temporairement un environnement de vérification vers cette branche.
+Seulement après validation, basculez les variables `POSTGRES_*` de Render vers
+l'endpoint de la branche restaurée et redéployez le backend.
+
+Cette séquence évite d'écraser des données récentes par erreur et permet de
+vérifier qu'une ancienne version du code reste compatible avec le schéma après
+migration.
 
 ## Dépannage
 

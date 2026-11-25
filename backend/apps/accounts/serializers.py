@@ -1,17 +1,12 @@
 """Sérialiseurs de l'inscription et du profil utilisateur."""
-import re
-from uuid import uuid4
-
 from django.conf import settings
-from django.core.files.storage import default_storage
 from django.db import transaction
 from PIL import Image, UnidentifiedImageError
 from rest_framework import serializers
 
 from .models import Parrainage, Utilisateur
-
-# Le format E.164 camerounais contient l'indicatif +237 suivi de neuf chiffres.
-CAMEROON_PHONE_PATTERN = re.compile(r"^\+237\d{9}$")
+from .utils import TELEPHONE_ERROR_MESSAGE, normaliser_telephone
+from config.media import enregistrer_image
 
 
 class UtilisateurSerializer(serializers.ModelSerializer):
@@ -123,12 +118,9 @@ class ProfilUpdateSerializer(serializers.ModelSerializer):
         """Enregistre le fichier via le stockage configuré avant de mettre à jour le profil."""
         photo = validated_data.pop("photo", None)
         if photo is not None:
-            # Un nom opaque évite les collisions et ne révèle pas le nom local
-            # du fichier transmis par l'utilisateur.
-            extension = photo.name.rsplit(".", 1)[-1].lower() if "." in photo.name else ""
-            filename = f"profils/{uuid4().hex}{'.' + extension if extension else ''}"
-            saved_path = default_storage.save(filename, photo)
-            validated_data["photo_url"] = default_storage.url(saved_path)
+            validated_data["photo_url"] = enregistrer_image(
+                photo, f"profils/{instance.id}"
+            )
         return super().update(instance, validated_data)
 
 
@@ -156,6 +148,12 @@ class ErreurSerializer(serializers.Serializer):
 
     code = serializers.CharField()
     message = serializers.CharField()
+    # Les erreurs de validation exposent les messages par champ, sans modifier
+    # les deux attributs historiques ``code`` et ``message``.
+    details = serializers.DictField(
+        child=serializers.ListField(child=serializers.CharField()),
+        required=False,
+    )
 
 
 class LoginSerializer(serializers.Serializer):
@@ -201,13 +199,11 @@ class InscriptionSerializer(serializers.Serializer):
 
     def validate_telephone(self, value):
         """Normalise un numéro local en E.164 et limite le pays au Cameroun."""
-        telephone = value.strip().replace(" ", "").replace("-", "")
-        if telephone.isdigit() and len(telephone) == 9:
-            telephone = f"+237{telephone}"
-        if not CAMEROON_PHONE_PATTERN.fullmatch(telephone):
-            raise serializers.ValidationError(
-                "Le téléphone doit être au format +237XXXXXXXXX."
-            )
+        try:
+            telephone = normaliser_telephone(value)
+        except ValueError as exc:
+            # Le message historique est préservé pour les clients existants.
+            raise serializers.ValidationError(TELEPHONE_ERROR_MESSAGE) from exc
         if Utilisateur.objects.filter(telephone=telephone).exists():
             raise serializers.ValidationError("Ce téléphone est déjà utilisé.")
         return telephone
