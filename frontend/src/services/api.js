@@ -1,13 +1,7 @@
 // src/services/api.js
 import axios from 'axios';
 
-// En local, Vite relaie /v1 vers Django. En production, Vercel injecte
-// VITE_API_URL avec l'URL HTTPS publique du service Render.
-const VITE_API_URL = '/v1';
-
-const API_BASE_URL = (
-  import.meta.env.VITE_API_URL || DEFAULT_API_BASE_URL
-).replace(/\/$/, '');
+const API_BASE_URL = 'https://alimma.onrender.com/v1';
 
 export const api = axios.create({
   baseURL: API_BASE_URL,
@@ -63,12 +57,12 @@ api.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
 
-    // ❌ Pas de réponse (erreur réseau) → on laisse passer
+    //  Pas de réponse (erreur réseau) → on laisse passer
     if (!error.response) return Promise.reject(error);
 
     const status = error.response.status;
 
-    // 🔒 401 : tentative de refresh automatique
+    // 401 : tentative de refresh automatique
     if (status === 401 && !originalRequest._retry) {
       // Si on est déjà en train de refresh, on met la requête en attente
       if (isRefreshing) {

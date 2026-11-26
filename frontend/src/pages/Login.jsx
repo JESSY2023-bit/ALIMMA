@@ -1,410 +1,173 @@
-
-
-
-// import { useState } from "react";
-// import { Link, useNavigate } from "react-router-dom";
-// import { FaEye, FaEyeSlash, FaArrowLeft } from "react-icons/fa";
-// import { useForm } from "react-hook-form";
-// import { zodResolver } from "@hookform/resolvers/zod";
-// import { loginSchema, otpSchema } from "../schemas/authSchema";
-// import { useLogin, useVerifyOtp } from "../hooks/useAuth";
-
-// export default function Login() {
-//   const [showPassword, setShowPassword] = useState(false);
-//   const [otpStep, setOtpStep] = useState(false); // Étape 2 : OTP
-//   const [sessionToken, setSessionToken] = useState("");
-//   const [apiError, setApiError] = useState("");
-  
-//   const navigate = useNavigate();
-//   const loginMutation = useLogin();
-//   const verifyOtpMutation = useVerifyOtp();
-
-//   // Formulaire de connexion
-//   const { register, handleSubmit, formState: { errors } } = useForm({
-//     resolver: zodResolver(loginSchema),
-//   });
-
-//   // Formulaire OTP
-//   const { register: registerOtp, handleSubmit: handleOtpSubmit, formState: { errors: otpErrors } } = useForm({
-//     resolver: zodResolver(otpSchema),
-//   });
-
-//   // Soumission du login
-//   const onSubmitLogin = (data) => {
-//     setApiError("");
-//     loginMutation.mutate(data, {
-//       onSuccess: (response) => {
-//         if (response.otp_requis) {
-//           setSessionToken(response.session_token);
-//           setOtpStep(true); // Passer à l'étape OTP
-//         } else {
-//           // Connexion directe réussie
-//           localStorage.setItem("access_token", response.access_token);
-//           navigate("/"); 
-//         }
-//       },
-//       onError: (error) => {
-//         setApiError(error.response?.data?.message || "Identifiants incorrects.");
-//       },
-//     });
-//   };
-
-//   // Soumission de l'OTP
-//   const onSubmitOtp = (data) => {
-//     setApiError("");
-//     verifyOtpMutation.mutate(
-//       { session_token: sessionToken, code: data.code },
-//       {
-//         onSuccess: (response) => {
-//           localStorage.setItem("access_token", response.access_token);
-//           localStorage.setItem("refresh_token", response.refresh_token);
-//           navigate("/");
-//         },
-//         onError: (error) => {
-//           setApiError(error.response?.data?.message || "Code OTP invalide.");
-//         },
-//       }
-//     );
-//   };
-
-//   return (
-//     <div className="min-h-screen flex items-center justify-center bg-white px-4 py-12 relative">
-//       <button
-//         onClick={() => otpStep ? setOtpStep(false) : navigate(-1)}
-//         className="absolute top-6 left-6 md:top-8 md:left-8 flex items-center gap-2 text-gray-500 hover:text-primary transition-colors group"
-//       >
-//         <FaArrowLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
-//         <span className="font-medium text-sm">Retour</span>
-//       </button>
-
-//       <div className="max-w-5xl w-full grid grid-cols-1 md:grid-cols-2 gap-16 items-center">
-//         <div className="hidden md:flex justify-center">
-//           <img src="/login.png" alt="Illustration" className="max-w-md w-full object-contain" />
-//         </div>
-
-//         <div className="max-w-md w-full mx-auto">
-//           <h1 className="text-3xl md:text-4xl font-bold text-primary mb-3">
-//             {otpStep ? "Vérification" : "Content de te revoir"}
-//           </h1>
-//           <p className="text-gray-500 uppercase tracking-widest text-xs md:text-sm mb-8">
-//             {otpStep ? "Entrez le code reçu par SMS" : "Connectez-vous pour continuer"}
-//           </p>
-
-//           {apiError && (
-//             <div className="bg-red-50 text-red-500 text-sm p-3 rounded-lg mb-4">
-//               {apiError}
-//             </div>
-//           )}
-
-//           {/* ÉTAPE 1 : Connexion */}
-//           {!otpStep ? (
-//             <form onSubmit={handleSubmit(onSubmitLogin)} className="space-y-6">
-//               <div>
-//                 <label className="block text-sm font-medium text-gray-800 mb-2">
-//                   Adresse e-mail ou Téléphone
-//                 </label>
-//                 <input
-//                   {...register("identifiant")}
-//                   type="text"
-//                   placeholder="Exemple@gmail.com ou +237..."
-//                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent text-gray-700"
-//                 />
-//                 {errors.identifiant && <p className="text-red-500 text-xs mt-1">{errors.identifiant.message}</p>}
-//               </div>
-
-//               <div>
-//                 <label className="block text-sm font-medium text-gray-800 mb-2">Mot de passe</label>
-//                 <div className="relative">
-//                   <input
-//                     {...register("password")}
-//                     type={showPassword ? "text" : "password"}
-//                     placeholder="••••"
-//                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent text-gray-700"
-//                   />
-//                   <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-//                     {showPassword ? <FaEyeSlash className="w-5 h-5" /> : <FaEye className="w-5 h-5" />}
-//                   </button>
-//                 </div>
-//                 {errors.password && <p className="text-red-500 text-xs mt-1">{errors.password.message}</p>}
-//                 <div className="text-right mt-2">
-//                   <Link to="#" className="text-sm text-gray-500 underline hover:text-primary">Mot de passe oublié ?</Link>
-//                 </div>
-//               </div>
-
-//               <button
-//                 type="submit"
-//                 disabled={loginMutation.isPending}
-//                 className="w-full bg-primary text-white font-bold uppercase py-3.5 rounded-lg hover:bg-primary-dark transition-colors disabled:opacity-70"
-//               >
-//                 {loginMutation.isPending ? "Connexion..." : "Se connecter"}
-//               </button>
-//             </form>
-//           ) : (
-//             /* ÉTAPE 2 : OTP */
-//             <form onSubmit={handleOtpSubmit(onSubmitOtp)} className="space-y-6">
-//               <div>
-//                 <label className="block text-sm font-medium text-gray-800 mb-2">Code OTP</label>
-//                 <input
-//                   {...registerOtp("code")}
-//                   type="text"
-//                   maxLength={6}
-//                   placeholder="Ex: 482913"
-//                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-center text-2xl tracking-widest"
-//                 />
-//                 {otpErrors.code && <p className="text-red-500 text-xs mt-1 text-center">{otpErrors.code.message}</p>}
-//               </div>
-//               <button
-//                 type="submit"
-//                 disabled={verifyOtpMutation.isPending}
-//                 className="w-full bg-primary text-white font-bold uppercase py-3.5 rounded-lg hover:bg-primary-dark transition-colors disabled:opacity-70"
-//               >
-//                 {verifyOtpMutation.isPending ? "Vérification..." : "Valider le code"}
-//               </button>
-//             </form>
-//           )}
-
-//           {!otpStep && (
-//             <p className="mt-8 text-center text-xs md:text-sm text-gray-500 uppercase tracking-wide">
-//               Nouvel utilisateur ?{" "}
-//               <Link to="/register" className="text-primary font-bold hover:underline ml-1">Inscrivez-vous</Link>
-//             </p>
-//           )}
-//         </div>
-//       </div>
-//     </div>
-//   );
-// }
-
-
-
-import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import { FaEye, FaEyeSlash, FaArrowLeft } from "react-icons/fa";
+import { useEffect, useState } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { loginSchema, otpSchema } from "../schemas/authSchema";
+import { loginSchema } from "../schemas/authSchema";
 import { useLogin, useVerifyOtp } from "../hooks/useAuth";
-import { useAuthContext } from "../hooks/useAuthContext"; // ✅ AJOUT
+import { useAuthContext } from "../hooks/useAuthContext";
+import AuthLayout from "../layouts/AuthLayout";
+import FlowLayout from "../layouts/FlowLayout";
+import OtpStep from "../components/auth/OtpStep";
+import { Button, Icon, Input, Notice, PasswordInput, useToast } from "../components/ui";
+import { maskPhone, normalizeIdentifier } from "../utils/phone";
+import { isNetworkOrServerError } from "../utils/apiErrors";
 
 export default function Login() {
-  const [showPassword, setShowPassword] = useState(false);
-  const [otpStep, setOtpStep] = useState(false);
-  const [sessionToken, setSessionToken] = useState("");
-  const [apiError, setApiError] = useState("");
-
   const navigate = useNavigate();
+  const location = useLocation();
+  const toast = useToast();
+  const { login } = useAuthContext();
   const loginMutation = useLogin();
   const verifyOtpMutation = useVerifyOtp();
-  const { login } = useAuthContext(); // ✅ RÉCUPÉRATION DU CONTEXTE
 
-  // Formulaire de connexion
-  const {
-    register,
-    handleSubmit,
-    formState: { errors },
-  } = useForm({
+  const [otp, setOtp] = useState(null); // { sessionToken, creds }
+  const [otpError, setOtpError] = useState("");
+  const [badCredentials, setBadCredentials] = useState(false);
+
+  const { register, handleSubmit, watch, formState: { errors } } = useForm({
     resolver: zodResolver(loginSchema),
+    defaultValues: { identifiant: "", password: "" },
   });
 
-  // Formulaire OTP
-  const {
-    register: registerOtp,
-    handleSubmit: handleOtpSubmit,
-    formState: { errors: otpErrors },
-  } = useForm({
-    resolver: zodResolver(otpSchema),
-  });
+  // Dès que la personne corrige un champ, l’erreur globale disparaît.
+  const [identifiant, password] = watch(["identifiant", "password"]);
+  useEffect(() => setBadCredentials(false), [identifiant, password]);
 
-  // Soumission du login
-  const onSubmitLogin = (data) => {
-    setApiError("");
-    loginMutation.mutate(data, {
+  const goNext = () => navigate(location.state?.from?.pathname || "/", { replace: true });
+
+  const onSubmit = (data) => {
+    const creds = { identifiant: normalizeIdentifier(data.identifiant), password: data.password };
+    setBadCredentials(false);
+    loginMutation.mutate(creds, {
       onSuccess: (response) => {
         if (response.otp_requis) {
-          setSessionToken(response.session_token);
-          setOtpStep(true);
+          setOtp({ sessionToken: response.session_token, creds });
         } else {
-          // ✅ Connexion directe : on met à jour le CONTEXTE
-          login(response); // 👈 stocke tokens + utilisateur dans AuthProvider
-          navigate("/");
+          login(response);
+          goNext();
         }
       },
       onError: (error) => {
-        setApiError(error.response?.data?.message || "Identifiants incorrects.");
+        if (isNetworkOrServerError(error)) {
+          toast.show("Réseau trop lent. Votre saisie est conservée.", {
+            variant: "error",
+            duration: 8000,
+            action: { label: "Réessayer", onClick: () => handleSubmit(onSubmit)() },
+          });
+        } else {
+          setBadCredentials(true);
+        }
       },
     });
   };
 
-  // Soumission de l'OTP
-  const onSubmitOtp = (data) => {
-    setApiError("");
+  const verifyOtp = (code) => {
+    setOtpError("");
     verifyOtpMutation.mutate(
-      { session_token: sessionToken, code: data.code },
+      { session_token: otp.sessionToken, code },
       {
         onSuccess: (response) => {
-          // ✅ OTP validé : on met à jour le CONTEXTE
-          login(response); // 👈 stocke tokens + utilisateur dans AuthProvider
-          navigate("/");
+          login(response);
+          goNext();
         },
-        onError: (error) => {
-          setApiError(error.response?.data?.message || "Code OTP invalide.");
-        },
-      }
+        onError: (error) =>
+          setOtpError(error.response?.data?.message || "Code incorrect. Vérifiez les 6 chiffres reçus par SMS."),
+      },
     );
   };
 
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-white px-4 py-12 relative">
-      <button
-        onClick={() => (otpStep ? setOtpStep(false) : navigate(-1))}
-        className="absolute top-6 left-6 md:top-8 md:left-8 flex items-center gap-2 text-gray-500 hover:text-primary transition-colors group"
+  const resendOtp = () =>
+    loginMutation.mutateAsync(otp.creds).then((response) => {
+      if (response?.session_token) setOtp((o) => ({ ...o, sessionToken: response.session_token }));
+    });
+
+  /* ---------- Étape 2 : code SMS ---------- */
+  if (otp) {
+    const masked = maskPhone(otp.creds.identifiant);
+    return (
+      <FlowLayout
+        centered
+        icon="sms"
+        iconTone={otpError ? "error" : undefined}
+        title="Vérifions que c’est bien vous"
+        onBack={() => { setOtp(null); setOtpError(""); }}
+        headerRight={<span className="flow__secure"><Icon name="lock" filled /> Connexion sécurisée</span>}
+        subtitle={
+          <>
+            Nous avons envoyé un code à 6 chiffres par SMS {masked ? <>au <strong>{masked}</strong></> : "au numéro de votre compte"}.{" "}
+            <button type="button" className="ui-link" onClick={() => setOtp(null)}>Modifier</button>
+          </>
+        }
       >
-        <FaArrowLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
-        <span className="font-medium text-sm">Retour</span>
-      </button>
+        <OtpStep
+          onVerify={verifyOtp}
+          onResend={resendOtp}
+          verifying={verifyOtpMutation.isPending}
+          resending={loginMutation.isPending}
+          error={otpError}
+          onClearError={() => setOtpError("")}
+        />
+      </FlowLayout>
+    );
+  }
 
-      <div className="max-w-5xl w-full grid grid-cols-1 md:grid-cols-2 gap-16 items-center">
-        <div className="hidden md:flex justify-center">
-          <img
-            src="/login.png"
-            alt="Illustration"
-            className="max-w-md w-full object-contain"
-          />
+  /* ---------- Étape 1 : identifiants ---------- */
+  return (
+    <AuthLayout
+      variant="login"
+      closeIcon="close"
+      onClose={() => navigate("/")}
+      heroTitle="Bon retour !"
+      heroText="Connectez-vous pour acheter, vendre et discuter."
+      title="Se connecter"
+      subtitle={<>Nouveau sur ALIMMA ? <Link to="/register" className="ui-link">Créer un compte</Link></>}
+    >
+      <form onSubmit={handleSubmit(onSubmit)} noValidate className="stack stack--lg">
+        {badCredentials && (
+          <Notice variant="error" title="Identifiant ou mot de passe incorrect.">
+            Vérifiez le numéro (sans le +237) ou <Link to="/mot-de-passe-oublie">réinitialisez votre mot de passe</Link>.
+          </Notice>
+        )}
+
+        <Input
+          label="Téléphone ou email" leadingIcon="person" autoComplete="username"
+          placeholder="670 12 34 56 ou vous@exemple.cm"
+          invalid={badCredentials} error={errors.identifiant?.message}
+          {...register("identifiant")}
+        />
+
+        <PasswordInput
+          leadingIcon="lock" placeholder="Votre mot de passe"
+          invalid={badCredentials} error={errors.password?.message}
+          labelAction={<Link to="/mot-de-passe-oublie" className="ui-link only-desktop">Mot de passe oublié ?</Link>}
+          below={<Link to="/mot-de-passe-oublie" className="ui-link auth__forgot only-mobile">Mot de passe oublié ?</Link>}
+          {...register("password")}
+        />
+
+        <Button type="submit" size="lg" fullWidth loading={loginMutation.isPending} loadingLabel="Connexion…">
+          Se connecter
+        </Button>
+
+        <Notice variant="neutral" icon="lock" className="only-mobile">
+          Ne communiquez jamais votre mot de passe : ALIMMA ne vous le demandera jamais par téléphone ou WhatsApp.
+        </Notice>
+
+        <div className="auth__trust only-desktop">
+          <span><Icon name="verified_user" filled /> Paiement protégé</span>
+          <span><Icon name="local_shipping" filled /> Livraison suivie</span>
         </div>
 
-        <div className="max-w-md w-full mx-auto">
-          <h1 className="text-3xl md:text-4xl font-bold text-primary mb-3">
-            {otpStep ? "Vérification" : "Content de te revoir"}
-          </h1>
-          <p className="text-gray-500 uppercase tracking-widest text-xs md:text-sm mb-8">
-            {otpStep
-              ? "Entrez le code reçu par SMS"
-              : "Connectez-vous pour continuer"}
-          </p>
-
-          {apiError && (
-            <div className="bg-red-50 text-red-500 text-sm p-3 rounded-lg mb-4">
-              {apiError}
-            </div>
-          )}
-
-          {/* ÉTAPE 1 : Connexion */}
-          {!otpStep ? (
-            <form
-              onSubmit={handleSubmit(onSubmitLogin)}
-              className="space-y-6"
-            >
-              <div>
-                <label className="block text-sm font-medium text-gray-800 mb-2">
-                  Adresse e-mail ou Téléphone
-                </label>
-                <input
-                  {...register("identifiant")}
-                  type="text"
-                  placeholder="Exemple@gmail.com ou +237..."
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent text-gray-700"
-                />
-                {errors.identifiant && (
-                  <p className="text-red-500 text-xs mt-1">
-                    {errors.identifiant.message}
-                  </p>
-                )}
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-800 mb-2">
-                  Mot de passe
-                </label>
-                <div className="relative">
-                  <input
-                    {...register("password")}
-                    type={showPassword ? "text" : "password"}
-                    placeholder="••••"
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent text-gray-700"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                  >
-                    {showPassword ? (
-                      <FaEyeSlash className="w-5 h-5" />
-                    ) : (
-                      <FaEye className="w-5 h-5" />
-                    )}
-                  </button>
-                </div>
-                {errors.password && (
-                  <p className="text-red-500 text-xs mt-1">
-                    {errors.password.message}
-                  </p>
-                )}
-                <div className="text-right mt-2">
-                  <Link
-                    to="#"
-                    className="text-sm text-gray-500 underline hover:text-primary"
-                  >
-                    Mot de passe oublié ?
-                  </Link>
-                </div>
-              </div>
-
-              <button
-                type="submit"
-                disabled={loginMutation.isPending}
-                className="w-full bg-primary text-white font-bold uppercase py-3.5 rounded-lg hover:bg-primary-dark transition-colors disabled:opacity-70"
-              >
-                {loginMutation.isPending ? "Connexion..." : "Se connecter"}
-              </button>
-            </form>
-          ) : (
-            /* ÉTAPE 2 : OTP */
-            <form
-              onSubmit={handleOtpSubmit(onSubmitOtp)}
-              className="space-y-6"
-            >
-              <div>
-                <label className="block text-sm font-medium text-gray-800 mb-2">
-                  Code OTP
-                </label>
-                <input
-                  {...registerOtp("code")}
-                  type="text"
-                  maxLength={6}
-                  placeholder="Ex: 482913"
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-center text-2xl tracking-widest"
-                />
-                {otpErrors.code && (
-                  <p className="text-red-500 text-xs mt-1 text-center">
-                    {otpErrors.code.message}
-                  </p>
-                )}
-              </div>
-              <button
-                type="submit"
-                disabled={verifyOtpMutation.isPending}
-                className="w-full bg-primary text-white font-bold uppercase py-3.5 rounded-lg hover:bg-primary-dark transition-colors disabled:opacity-70"
-              >
-                {verifyOtpMutation.isPending
-                  ? "Vérification..."
-                  : "Valider le code"}
-              </button>
-            </form>
-          )}
-
-          {!otpStep && (
-            <p className="mt-8 text-center text-xs md:text-sm text-gray-500 uppercase tracking-wide">
-              Nouvel utilisateur ?{" "}
-              <Link
-                to="/register"
-                className="text-primary font-bold hover:underline ml-1"
-              >
-                Inscrivez-vous
-              </Link>
-            </p>
-          )}
-        </div>
-      </div>
-    </div>
+        <div className="auth__divider only-mobile">Nouveau sur ALIMMA ?</div>
+        <Link to="/register" className="ui-btn ui-btn--secondary ui-btn--lg ui-btn--full only-mobile">
+          Créer un compte gratuit
+        </Link>
+        <p className="auth__center">
+          <Link to="/" className="ui-link" style={{ fontWeight: 500, textDecoration: "none", color: "inherit" }}>
+            <span className="only-mobile">Continuer sans compte</span>
+            <span className="only-desktop">Continuer mes achats sans compte</span>
+          </Link>
+        </p>
+      </form>
+    </AuthLayout>
   );
 }

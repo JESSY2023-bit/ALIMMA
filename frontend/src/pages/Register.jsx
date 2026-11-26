@@ -1,154 +1,137 @@
-
-
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { FaEye, FaEyeSlash, FaArrowLeft } from "react-icons/fa";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { registerSchema } from "../schemas/authSchema";
 import { useRegister } from "../hooks/useAuth";
+import AuthLayout from "../layouts/AuthLayout";
+import {
+  Button, Checkbox, FormAlert, Icon, Input, Notice, PasswordInput, PasswordStrength, PhoneInput, useToast,
+} from "../components/ui";
+import { toE164 } from "../utils/phone";
+import { applyApiFieldErrors, isNetworkOrServerError } from "../utils/apiErrors";
 
 export default function Register() {
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [apiError, setApiError] = useState("");
-  const [successMsg, setSuccessMsg] = useState("");
-  
   const navigate = useNavigate();
+  const toast = useToast();
   const registerMutation = useRegister();
+  const [banner, setBanner] = useState(null); // { type: "conflict" | "server" | "message", message? }
+  const [showReferral, setShowReferral] = useState(false);
 
-  const { register, handleSubmit, formState: { errors } } = useForm({
+  const {
+    register, handleSubmit, setError, setFocus, watch,
+    formState: { errors, touchedFields },
+  } = useForm({
     resolver: zodResolver(registerSchema),
+    mode: "onTouched",
+    defaultValues: { nom: "", telephone: "", email: "", password: "", codeParrainage: "", cgu: false },
   });
 
+  const password = watch("password");
+  const isOk = (name) => Boolean(touchedFields[name] && !errors[name] && watch(name));
+
   const onSubmit = (data) => {
-    setApiError("");
-    setSuccessMsg("");
-    
-    registerMutation.mutate(data, {
+    setBanner(null);
+    const payload = { nom: data.nom.trim(), telephone: toE164(data.telephone), password: data.password };
+    if (data.email) payload.email = data.email.trim();
+    if (data.codeParrainage) payload.code_parrainage = data.codeParrainage.trim();
+
+    registerMutation.mutate(payload, {
       onSuccess: () => {
-        setSuccessMsg("Compte créé avec succès ! Redirection...");
-        setTimeout(() => navigate("/login"), 2000);
+        toast.success(`Compte créé. Bienvenue sur ALIMMA, ${payload.nom.split(" ")[0]} !`);
+        navigate("/login");
       },
       onError: (error) => {
-        setApiError(error.response?.data?.message || "Erreur lors de l'inscription.");
+        if (applyApiFieldErrors(error, setError, setFocus, { code_parrainage: "codeParrainage" })) {
+          if (error.response?.data?.errors?.code_parrainage) setShowReferral(true);
+          return;
+        }
+        if (error.response?.status === 409) setBanner({ type: "conflict" });
+        else if (isNetworkOrServerError(error)) setBanner({ type: "server" });
+        else setBanner({ type: "message", message: error.response?.data?.message || "Inscription impossible. Vérifiez vos informations." });
       },
     });
   };
 
   return (
-    <div className="min-h-[75vh] flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 bg-white relative">
-      <button
-        onClick={() => navigate(-1)}
-        className="absolute top-6 left-6 md:top-8 md:left-8 flex items-center gap-2 text-gray-500 hover:text-primary transition-colors group"
-      >
-        <FaArrowLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
-        <span className="font-medium text-sm">Retour</span>
-      </button>
+    <AuthLayout
+      variant="register"
+      heroTitle="Créez votre compte"
+      heroText="Gratuit. Achetez, vendez et suivez vos commandes."
+      title="Créer un compte"
+      subtitle={<>Déjà inscrit ? <Link to="/login" className="ui-link">Se connecter</Link></>}
+    >
+      <form onSubmit={handleSubmit(onSubmit)} noValidate className="stack stack--lg">
+        {banner?.type === "server" && <FormAlert onRetry={handleSubmit(onSubmit)} retrying={registerMutation.isPending} />}
+        {banner?.type === "conflict" && (
+          <Notice variant="error">
+            Ce numéro a déjà un compte ALIMMA. <Link to="/login">Se connecter</Link> ou{" "}
+            <Link to="/mot-de-passe-oublie">réinitialiser le mot de passe</Link>.
+          </Notice>
+        )}
+        {banner?.type === "message" && <Notice variant="error">{banner.message}</Notice>}
 
-      <div className="max-w-6xl w-full grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-        <div className="flex justify-center items-center">
-          <img src="/login.png" alt="Illustration" className="w-full max-w-md h-auto object-contain" />
-        </div>
+        <Input
+          label="Nom complet" placeholder="Ex. : Aïcha Ngono" autoComplete="name"
+          error={errors.nom?.message} valid={isOk("nom")}
+          {...register("nom")}
+        />
 
-        <div className="max-w-md w-full mx-auto space-y-6">
-          <div>
-            <h2 className="text-4xl font-extrabold text-primary tracking-tight mb-1">S'inscrire</h2>
-            <p className="text-xs font-bold tracking-widest text-gray-400 uppercase">REJOIGNEZ-NOUS</p>
-          </div>
+        <PhoneInput
+          hint="Obligatoire : il sert d’identifiant de connexion et pour vos livraisons."
+          error={errors.telephone?.message} valid={isOk("telephone")}
+          {...register("telephone")}
+        />
 
-          {apiError && <div className="bg-red-50 text-red-500 text-sm p-3 rounded-lg">{apiError}</div>}
-          {successMsg && <div className="bg-green-50 text-green-600 text-sm p-3 rounded-lg">{successMsg}</div>}
+        <Input
+          label="Email" optional type="email" inputMode="email" autoComplete="email" placeholder="vous@exemple.cm"
+          error={errors.email?.message} valid={isOk("email")}
+          {...register("email")}
+        />
 
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-            {/* Nom */}
-            <div>
-              <label className="block text-sm font-medium text-gray-800 mb-1.5">Votre nom complet</label>
-              <input
-                {...register("nom")}
-                type="text"
-                placeholder="Ex: John Doe"
-                className="w-full rounded-lg border border-gray-200 px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 focus:border-primary"
-              />
-              {errors.nom && <p className="text-red-500 text-xs mt-1">{errors.nom.message}</p>}
-            </div>
+        <PasswordInput
+          label="Mot de passe" autoComplete="new-password" placeholder="8 caractères minimum, dont 1 chiffre"
+          error={errors.password?.message}
+          below={password ? <PasswordStrength value={password} /> : null}
+          {...register("password")}
+        />
 
-            {/* Téléphone (Nouveau champ requis par l'API) */}
-            <div>
-              <label className="block text-sm font-medium text-gray-800 mb-1.5">Téléphone</label>
-              <input
-                {...register("telephone")}
-                type="tel"
-                placeholder="+237670000000"
-                className="w-full rounded-lg border border-gray-200 px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 focus:border-primary"
-              />
-              {errors.telephone && <p className="text-red-500 text-xs mt-1">{errors.telephone.message}</p>}
-            </div>
+        {showReferral || watch("codeParrainage") ? (
+          <Input
+            label="Code de parrainage" optional leadingIcon="redeem" placeholder="EX. : PAUL-E7K2" autoCapitalize="characters"
+            hint="Un bonus pour vous et votre parrain à votre premier achat."
+            error={errors.codeParrainage?.message}
+            {...register("codeParrainage")}
+          />
+        ) : (
+          <Button
+            variant="tertiary" size="sm" className="auth__disclosure" leadingIcon="redeem"
+            aria-expanded="false" onClick={() => setShowReferral(true)}
+          >
+            J’ai un code de parrainage <Icon name="expand_more" size={20} />
+          </Button>
+        )}
 
-            {/* Email */}
-            <div>
-              <label className="block text-sm font-medium text-gray-800 mb-1.5">Adresse email (Optionnel)</label>
-              <input
-                {...register("email")}
-                type="email"
-                placeholder="Entrez votre email"
-                className="w-full rounded-lg border border-gray-200 px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 focus:border-primary"
-              />
-              {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email.message}</p>}
-            </div>
+        <Checkbox
+          error={errors.cgu?.message}
+          label={
+            <>
+              J’accepte les <Link to="/cgu" target="_blank" className="ui-link">CGU</Link> et la{" "}
+              <Link to="/confidentialite" target="_blank" className="ui-link">politique de confidentialité</Link>
+            </>
+          }
+          {...register("cgu")}
+        />
 
-            {/* Mot de passe */}
-            <div>
-              <label className="block text-sm font-medium text-gray-800 mb-1.5">Mot de passe</label>
-              <div className="relative">
-                <input
-                  {...register("password")}
-                  type={showPassword ? "text" : "password"}
-                  placeholder="...."
-                  className="w-full rounded-lg border border-gray-200 px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 focus:border-primary"
-                />
-                <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-primary">
-                  {showPassword ? <FaEyeSlash /> : <FaEye />}
-                </button>
-              </div>
-              {errors.password && <p className="text-red-500 text-xs mt-1">{errors.password.message}</p>}
-            </div>
+        <Button type="submit" size="lg" fullWidth loading={registerMutation.isPending} loadingLabel="Création du compte…">
+          Créer mon compte
+        </Button>
 
-            {/* Confirmer le mot de passe */}
-            <div>
-              <label className="block text-sm font-medium text-gray-800 mb-1.5">Confirmez le mot de passe</label>
-              <div className="relative">
-                <input
-                  {...register("confirmPassword")}
-                  type={showConfirmPassword ? "text" : "password"}
-                  placeholder="...."
-                  className="w-full rounded-lg border border-gray-200 px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 focus:border-primary"
-                />
-                <button type="button" onClick={() => setShowConfirmPassword(!showConfirmPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-primary">
-                  {showConfirmPassword ? <FaEyeSlash /> : <FaEye />}
-                </button>
-              </div>
-              {errors.confirmPassword && <p className="text-red-500 text-xs mt-1">{errors.confirmPassword.message}</p>}
-            </div>
-
-            {/* Bouton S'inscrire */}
-            <div className="pt-2">
-              <button
-                type="submit"
-                disabled={registerMutation.isPending}
-                className="w-full bg-primary hover:bg-primary-dark text-white font-bold text-sm uppercase tracking-wider py-3.5 rounded-lg shadow-sm transition-colors disabled:opacity-70"
-              >
-                {registerMutation.isPending ? "Inscription en cours..." : "S'INSCRIRE"}
-              </button>
-            </div>
-          </form>
-
-          <div className="text-xs font-semibold text-gray-400 pt-2 uppercase">
-            DÉJÀ UTILISATEUR ?{" "}
-            <Link to="/login" className="text-primary hover:underline font-bold ml-1">CONNECTEZ-VOUS</Link>
-          </div>
-        </div>
-      </div>
-    </div>
+        <p className="auth__center only-mobile">
+          Déjà inscrit ? <Link to="/login" className="ui-link">Se connecter</Link>
+        </p>
+        <p className="auth__note only-desktop">Votre compte est actif immédiatement : aucun code à saisir.</p>
+      </form>
+    </AuthLayout>
   );
 }
