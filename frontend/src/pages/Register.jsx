@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
@@ -15,7 +16,7 @@ export default function Register() {
   const navigate = useNavigate();
   const toast = useToast();
   const registerMutation = useRegister();
-  const [banner, setBanner] = useState(null); // { type: "conflict" | "server" | "message", message? }
+  const [banner, setBanner] = useState(null);
   const [showReferral, setShowReferral] = useState(false);
 
   const {
@@ -31,8 +32,13 @@ export default function Register() {
   const isOk = (name) => Boolean(touchedFields[name] && !errors[name] && watch(name));
 
   const onSubmit = (data) => {
+    console.log("✅ onSubmit appelé, data =", data);  // ← diagnostic temporaire
     setBanner(null);
-    const payload = { nom: data.nom.trim(), telephone: toE164(data.telephone), password: data.password };
+    const payload = {
+      nom: data.nom.trim(),
+      telephone: toE164(data.telephone),
+      password: data.password,
+    };
     if (data.email) payload.email = data.email.trim();
     if (data.codeParrainage) payload.code_parrainage = data.codeParrainage.trim();
 
@@ -42,6 +48,7 @@ export default function Register() {
         navigate("/login");
       },
       onError: (error) => {
+        console.error("❌ Erreur inscription :", error.response?.data || error.message);
         if (applyApiFieldErrors(error, setError, setFocus, { code_parrainage: "codeParrainage" })) {
           if (error.response?.data?.errors?.code_parrainage) setShowReferral(true);
           return;

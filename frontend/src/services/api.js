@@ -38,7 +38,7 @@ api.interceptors.request.use(
 
 // ============================================================
 // INTERCEPTEUR DE RÉPONSE : Refresh automatique sur 401
-// ============================================================
+
 
 // File d'attente des requêtes en attendant le nouveau token
 let isRefreshing = false;
