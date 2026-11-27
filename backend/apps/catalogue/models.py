@@ -80,6 +80,7 @@ class Annonce(models.Model):
     class Statut(models.TextChoices):
         EN_ATTENTE_MODERATION = "en_attente_moderation", "En attente de modération"
         ACTIVE = "active", "Active"
+        RESERVEE = "reservee", "Réservée"
         EN_PAUSE = "en_pause", "En pause"
         REJETEE = "rejetee", "Rejetée"
         VENDUE = "vendue", "Vendue"

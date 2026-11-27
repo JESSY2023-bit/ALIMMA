@@ -10,6 +10,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken, OutstandingToken
 
 from .serializers import (
     ErreurSerializer,
@@ -24,9 +25,12 @@ from .serializers import (
     ProfilUpdateSerializer,
     ProfilUtilisateurSerializer,
     UtilisateurSerializer,
+    TelephoneCodeSerializer,
+    TelephoneSerializer,
+    ReinitialisationMotDePasseSerializer,
 )
 from .models import Utilisateur
-from .services import LoginAttemptLimiter
+from .services import LoginAttemptLimiter, OtpService
 from apps.catalogue.models import Annonce
 
 INVALID_CREDENTIALS_MESSAGE = "Identifiants invalides."
@@ -50,8 +54,13 @@ class InscriptionView(APIView):
         serializer = InscriptionSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         utilisateur = serializer.save()
+        OtpService.envoyer(utilisateur, OtpService.INSCRIPTION)
         return Response(
-            UtilisateurSerializer(utilisateur).data,
+            {
+                "otp_requis": True,
+                "message": "Code de vérification envoyé par SMS.",
+                "telephone": utilisateur.telephone,
+            },
             status=status.HTTP_201_CREATED,
         )
 
@@ -155,6 +164,8 @@ class LoginView(APIView):
             raise AuthenticationFailed(INVALID_CREDENTIALS_MESSAGE)
 
         LoginAttemptLimiter.clear(identifier, request)
+        if not utilisateur.telephone_verifie:
+            raise AuthenticationFailed("Veuillez vérifier votre numéro de téléphone.")
         utilisateur.derniere_connexion = timezone.now()
         utilisateur.save(update_fields=["derniere_connexion", "updated_at"])
         if settings.FEATURE_2FA_ENABLED and utilisateur.deux_fa_active:
@@ -168,6 +179,120 @@ class LoginView(APIView):
                 }
             )
         return Response(token_response(utilisateur))
+
+
+class VerifyOtpView(APIView):
+    """Confirme un téléphone d'inscription après validation du code SMS."""
+
+    permission_classes = [AllowAny]
+    authentication_classes = []
+    serializer_class = TelephoneCodeSerializer
+
+    def post(self, request):
+        serializer = TelephoneCodeSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        telephone = serializer.validated_data["telephone"]
+        if not OtpService.verifier(
+            telephone, serializer.validated_data["code"], OtpService.INSCRIPTION
+        ):
+            raise AuthenticationFailed("Code de vérification invalide ou expiré.")
+        try:
+            utilisateur = Utilisateur.objects.get(telephone=telephone)
+        except Utilisateur.DoesNotExist as exc:
+            raise AuthenticationFailed("Code de vérification invalide ou expiré.") from exc
+        utilisateur.telephone_verifie = True
+        utilisateur.save(update_fields=["telephone_verifie", "updated_at"])
+        return Response({"telephone_verifie": True})
+
+
+class RenvoyerOtpView(APIView):
+    """Régénère un code d'inscription pour un compte encore non vérifié."""
+
+    permission_classes = [AllowAny]
+    authentication_classes = []
+    serializer_class = TelephoneSerializer
+    throttle_scope = "otp"
+
+    def post(self, request):
+        serializer = TelephoneSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        utilisateur = Utilisateur.objects.filter(
+            telephone=serializer.validated_data["telephone"], telephone_verifie=False
+        ).first()
+        if utilisateur:
+            OtpService.envoyer(utilisateur, OtpService.INSCRIPTION)
+        return Response(
+            {"message": "Si ce numéro est éligible, un code a été envoyé."}
+        )
+
+
+class MotDePasseOublieView(APIView):
+    """Déclenche un OTP de réinitialisation sans révéler l'existence du compte."""
+
+    permission_classes = [AllowAny]
+    authentication_classes = []
+    serializer_class = TelephoneSerializer
+    throttle_scope = "otp"
+
+    def post(self, request):
+        serializer = TelephoneSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        utilisateur = Utilisateur.objects.filter(
+            telephone=serializer.validated_data["telephone"]
+        ).first()
+        if utilisateur:
+            OtpService.envoyer(utilisateur, OtpService.REINITIALISATION)
+        return Response({"message": "Si ce numéro existe, un code a été envoyé."})
+
+
+class VerifierMotDePasseOublieView(APIView):
+    """Transforme un OTP valide en jeton opaque de réinitialisation limité."""
+
+    permission_classes = [AllowAny]
+    authentication_classes = []
+    serializer_class = TelephoneCodeSerializer
+
+    def post(self, request):
+        serializer = TelephoneCodeSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        telephone = serializer.validated_data["telephone"]
+        if not OtpService.verifier(
+            telephone, serializer.validated_data["code"], OtpService.REINITIALISATION
+        ):
+            raise AuthenticationFailed("Code de vérification invalide ou expiré.")
+        utilisateur = Utilisateur.objects.filter(telephone=telephone).first()
+        if not utilisateur:
+            raise AuthenticationFailed("Code de vérification invalide ou expiré.")
+        jeton = OtpService.creer_jeton_reinitialisation(utilisateur)
+        return Response({"reset_token": jeton, "jeton": jeton})
+
+
+class ReinitialiserMotDePasseView(APIView):
+    """Consomme un jeton de réinitialisation et révoque les sessions existantes."""
+
+    permission_classes = [AllowAny]
+    authentication_classes = []
+    serializer_class = ReinitialisationMotDePasseSerializer
+
+    def post(self, request):
+        donnees = request.data.copy()
+        if "reset_token" in donnees and "jeton" not in donnees:
+            donnees["jeton"] = donnees["reset_token"]
+        if "password" in donnees and "nouveau_mot_de_passe" not in donnees:
+            donnees["nouveau_mot_de_passe"] = donnees["password"]
+        serializer = ReinitialisationMotDePasseSerializer(data=donnees)
+        serializer.is_valid(raise_exception=True)
+        utilisateur_id = OtpService.consommer_jeton_reinitialisation(
+            serializer.validated_data["jeton"]
+        )
+        utilisateur = Utilisateur.objects.filter(pk=utilisateur_id, est_actif=True).first()
+        if not utilisateur:
+            raise AuthenticationFailed("Jeton de réinitialisation invalide ou expiré.")
+        utilisateur.set_password(serializer.validated_data["nouveau_mot_de_passe"])
+        utilisateur.save(update_fields=["password_hash", "updated_at"])
+        for token in OutstandingToken.objects.filter(user=utilisateur):
+            BlacklistedToken.objects.get_or_create(token=token)
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class RefreshView(APIView):

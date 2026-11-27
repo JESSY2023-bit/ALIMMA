@@ -13,6 +13,7 @@ from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken, Ou
 from apps.accounts.models import ProfilLivreur, ProfilVendeurPro, Utilisateur
 from apps.accounts.permissions import EstAdministrateur
 from apps.accounts.serializers import ErreurSerializer
+from apps.notifications.services import notifier
 
 from .models import JournalModeration
 from .serializers import ChangementRoleSerializer, UtilisateurAdministrationSerializer
@@ -157,5 +158,11 @@ class RoleUtilisateurView(APIView):
                 "utilisateur_role_modifie",
                 utilisateur,
                 details=f"ancien_role={ancien_role}; nouveau_role={nouveau_role}",
+            )
+            notifier(
+                utilisateur,
+                "role_modifie",
+                {"role": nouveau_role},
+                canaux=("sms", "email"),
             )
         return Response(UtilisateurAdministrationSerializer(utilisateur).data)

@@ -25,6 +25,14 @@ class StatutCommandeField(models.CharField):
         return "statut_commande"
 
 
+class ModeRemiseField(models.CharField):
+    """Préserve l'énumération PostgreSQL ``mode_remise``."""
+
+    def db_type(self, connection):
+        """Déclare le type enum utilisé par l'adresse structurée."""
+        return "mode_remise"
+
+
 class ModePaiementField(models.CharField):
     """Préserve le type PostgreSQL ``mode_paiement`` du schéma de référence."""
 
@@ -74,13 +82,19 @@ class Commande(models.Model):
 
     class Statut(models.TextChoices):
         ATTENTE_PAIEMENT = "attente_paiement", "En attente de paiement"
-        CONFIRMEE = "confirmee", "Confirmée"
-        PAYEE = "payee", "Payée"
-        PREPAREE = "preparee", "Préparée"
-        EN_TRANSIT = "en_transit", "En transit"
+        ATTENTE_VENDEUR = "attente_vendeur", "En attente du vendeur"
+        ACCEPTEE = "acceptee", "Acceptée"
+        EXPEDIEE = "expediee", "Expédiée"
         LIVREE = "livree", "Livrée"
-        ANNULEE = "annulee", "Annulée"
+        ECHEC_LIVRAISON = "echec_livraison", "Échec de livraison"
         LITIGE = "litige", "Litige"
+        TERMINEE = "terminee", "Terminée"
+        ANNULEE = "annulee", "Annulée"
+        REMBOURSEE = "remboursee", "Remboursée"
+
+    class ModeRemise(models.TextChoices):
+        MAIN_PROPRE = "main_propre", "Remise en main propre"
+        LIVRAISON_VENDEUR = "livraison_vendeur", "Livraison par le vendeur"
 
     acheteur = models.ForeignKey(
         "accounts.Utilisateur", on_delete=models.DO_NOTHING, related_name="commandes_acheteur"
@@ -92,25 +106,80 @@ class Commande(models.Model):
         "accounts.Utilisateur", on_delete=models.DO_NOTHING, related_name="commandes_vendeur"
     )
     quantite = models.IntegerField(default=1)
-    montant_produit = models.DecimalField(max_digits=12, decimal_places=2)
-    frais_livraison = models.DecimalField(max_digits=12, decimal_places=2, default=0)
-    montant_total = models.DecimalField(max_digits=12, decimal_places=2)
+    montant_produit = models.PositiveBigIntegerField()
+    montant_reduction = models.PositiveBigIntegerField(default=0)
+    frais_livraison = models.PositiveBigIntegerField(default=0)
+    montant_total = models.PositiveBigIntegerField()
+    code_promo = models.ForeignKey(
+        "CodePromo",
+        on_delete=models.SET_NULL,
+        related_name="commandes",
+        null=True,
+        blank=True,
+    )
     mode_paiement = ModePaiementField(max_length=20, choices=ModePaiement.choices)
     statut = StatutCommandeField(
         max_length=20, choices=Statut.choices, default=Statut.ATTENTE_PAIEMENT
     )
-    adresse_livraison = models.TextField()
-    ville_livraison = models.CharField(max_length=100)
+    mode_remise = ModeRemiseField(max_length=20, choices=ModeRemise.choices)
+    ville = models.CharField(max_length=100)
+    quartier = models.CharField(max_length=100)
+    repere = models.CharField(max_length=200)
+    latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+    longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+    telephone_contact = models.CharField(max_length=20)
     code_parrainage_utilise = models.CharField(max_length=12, null=True, blank=True)
     created_at = models.DateTimeField(default=timezone.now, db_default=Now())
     updated_at = models.DateTimeField(auto_now=True, db_default=Now())
 
     class Meta:
         db_table = "commandes"
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(montant_reduction__lte=models.F("montant_produit")),
+                name="commandes_reduction_plafonnee",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(
+                    montant_total=(
+                        models.F("montant_produit")
+                        - models.F("montant_reduction")
+                        + models.F("frais_livraison")
+                    )
+                ),
+                name="commandes_total_traceable",
+            ),
+        ]
         indexes = [
             models.Index(fields=["acheteur"], name="idx_commandes_acheteur"),
             models.Index(fields=["vendeur"], name="idx_commandes_vendeur"),
             models.Index(fields=["statut"], name="idx_commandes_statut"),
+        ]
+
+
+class HistoriqueStatutCommande(models.Model):
+    """Trace immuable des changements d'état d'une commande."""
+
+    commande = models.ForeignKey(
+        Commande, on_delete=models.CASCADE, related_name="historique_statuts"
+    )
+    ancien_statut = StatutCommandeField(max_length=20, choices=Commande.Statut.choices)
+    nouveau_statut = StatutCommandeField(max_length=20, choices=Commande.Statut.choices)
+    acteur = models.ForeignKey(
+        "accounts.Utilisateur",
+        on_delete=models.DO_NOTHING,
+        related_name="transitions_commandes",
+        null=True,
+        blank=True,
+    )
+    motif = models.TextField(null=True, blank=True)
+    created_at = models.DateTimeField(default=timezone.now, db_default=Now())
+
+    class Meta:
+        db_table = "historique_statuts_commandes"
+        ordering = ("created_at", "id")
+        indexes = [
+            models.Index(fields=["commande", "created_at"], name="idx_hist_cmd_date"),
         ]
 
 
@@ -135,7 +204,7 @@ class Paiement(models.Model):
         max_length=10, choices=Operateur.choices, null=True, blank=True
     )
     reference_transaction = models.CharField(max_length=100, null=True, blank=True)
-    montant = models.DecimalField(max_digits=12, decimal_places=2)
+    montant = models.PositiveBigIntegerField()
     statut = StatutPaiementField(
         max_length=20, choices=Statut.choices, default=Statut.EN_ATTENTE
     )
@@ -200,9 +269,7 @@ class CodePromo(models.Model):
         blank=True,
     )
     reduction_pct = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
-    reduction_montant = models.DecimalField(
-        max_digits=12, decimal_places=2, null=True, blank=True
-    )
+    reduction_montant = models.PositiveBigIntegerField(null=True, blank=True)
     date_debut = models.DateTimeField()
     date_fin = models.DateTimeField()
     usage_max = models.IntegerField(null=True, blank=True)

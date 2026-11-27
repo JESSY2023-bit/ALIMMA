@@ -4,6 +4,7 @@ from decimal import Decimal, InvalidOperation
 from django.core.cache import cache
 
 from apps.catalogue.models import Annonce
+from config.money import fcfa
 
 from .models import ParametreSite
 
@@ -51,7 +52,7 @@ def frais_livraison():
         frais = Decimal(valeur) if valeur is not None else Decimal("0")
     except (InvalidOperation, TypeError):
         return Decimal("0")
-    return max(frais, Decimal("0"))
+    return fcfa(max(frais, Decimal("0")))
 
 
 def construire_panier(utilisateur_id):
@@ -73,18 +74,18 @@ def construire_panier(utilisateur_id):
             indisponibles = True
             continue
         contenu_valide[annonce_id] = quantite
-        total_ligne = annonce.prix * quantite
+        total_ligne = fcfa(annonce.prix * quantite)
         articles.append(
             {
                 "annonce": annonce,
                 "quantite": quantite,
-                "prix_unitaire": annonce.prix,
+                "prix_unitaire": fcfa(annonce.prix),
                 "total_ligne": total_ligne,
             }
         )
     enregistrer_contenu(utilisateur_id, contenu_valide)
-    sous_total = sum((article["total_ligne"] for article in articles), Decimal("0"))
-    frais = frais_livraison() if articles else Decimal("0")
+    sous_total = sum((article["total_ligne"] for article in articles), 0)
+    frais = frais_livraison() if articles else 0
     resultat = {
         "articles": articles,
         "sous_total": sous_total,

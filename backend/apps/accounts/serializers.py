@@ -3,6 +3,7 @@ from django.conf import settings
 from django.db import transaction
 from PIL import Image, UnidentifiedImageError
 from rest_framework import serializers
+from drf_spectacular.utils import extend_schema_serializer
 
 from .models import Parrainage, Utilisateur
 from .utils import TELEPHONE_ERROR_MESSAGE, normaliser_telephone
@@ -20,6 +21,7 @@ class UtilisateurSerializer(serializers.ModelSerializer):
             "email",
             "telephone",
             "role",
+            "telephone_verifie",
             "photo_url",
             "note_moyenne",
             "code_parrainage",
@@ -45,6 +47,7 @@ class ProfilUtilisateurSerializer(serializers.ModelSerializer):
             "points_parrainage",
             "code_parrainage",
             "deux_fa_active",
+            "telephone_verifie",
             "derniere_connexion",
             "date_inscription",
         )
@@ -184,6 +187,43 @@ class LoginResponseSerializer(serializers.Serializer):
     utilisateur = UtilisateurSerializer(required=False)
 
 
+@extend_schema_serializer(component_name="VerifyOtpRequest")
+class TelephoneCodeSerializer(serializers.Serializer):
+    """Valide un téléphone camerounais et un code OTP à six chiffres."""
+
+    telephone = serializers.CharField(max_length=20)
+    code = serializers.RegexField(r"^\d{6}$")
+
+    def validate_telephone(self, value):
+        try:
+            return normaliser_telephone(value)
+        except ValueError as exc:
+            raise serializers.ValidationError(TELEPHONE_ERROR_MESSAGE) from exc
+
+
+@extend_schema_serializer(component_name="TelephoneRequest")
+class TelephoneSerializer(serializers.Serializer):
+    """Valide les routes OTP qui ne reçoivent qu'un téléphone."""
+
+    telephone = serializers.CharField(max_length=20)
+
+    def validate_telephone(self, value):
+        try:
+            return normaliser_telephone(value)
+        except ValueError as exc:
+            raise serializers.ValidationError(TELEPHONE_ERROR_MESSAGE) from exc
+
+
+@extend_schema_serializer(component_name="PasswordResetRequest")
+class ReinitialisationMotDePasseSerializer(serializers.Serializer):
+    """Valide le jeton opaque et le nouveau secret sans jamais le sérialiser."""
+
+    jeton = serializers.CharField()
+    nouveau_mot_de_passe = serializers.CharField(
+        write_only=True, min_length=8, trim_whitespace=False
+    )
+
+
 class InscriptionSerializer(serializers.Serializer):
     """Valide et crée une inscription depuis ``InscriptionRequest``."""
 
@@ -220,6 +260,8 @@ class InscriptionSerializer(serializers.Serializer):
     def create(self, validated_data):
         """Crée le compte et applique un parrainage valide, sans bloquer sinon."""
         code_utilise = validated_data.pop("code_parrainage_utilise", "")
+        # Seule l'inscription publique doit impérativement passer par le SMS.
+        validated_data["telephone_verifie"] = False
         # La transaction garantit qu'un filleul ne peut pas être créé sans son
         # lien de parrainage lorsque le code fourni est valide.
         with transaction.atomic():

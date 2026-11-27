@@ -433,6 +433,56 @@ que les URL de base ont été remplacées par celles du stockage objet.
 Utilisez `--source-media-url` si vos anciennes URL locales n'emploient pas ce
 préfixe.
 
+## Worker RQ et notifications
+
+Les SMS et e-mails transactionnels sont traités hors requête HTTP par RQ. En
+local, Compose démarre trois processus : `backend`, `worker` (file `default`)
+et `scheduler`. Le scheduler enregistre le traitement idempotent des échéances
+de commande toutes les cinq minutes.
+
+```bash
+docker compose --env-file infra/.env -f infra/docker-compose.yml up -d --build
+docker compose --env-file infra/.env -f infra/docker-compose.yml logs -f worker
+```
+
+Par défaut, `SMS_PROVIDER=console` écrit un événement de simulation dans les
+logs du worker : aucun SMS n'est facturé. Pour un agrégateur local, configurez
+les secrets uniquement dans Render ou dans `backend/.env` non versionné :
+
+```dotenv
+RQ_REDIS_URL=redis://.../2
+RQ_ASYNC=true
+SMS_PROVIDER=http
+SMS_API_URL=https://fournisseur.exemple/api/messages
+SMS_API_KEY=secret_fourni_par_l_agregateur
+SMS_SENDER=ALIMMA
+SMS_COST_FCFA=25
+DEFAULT_FROM_EMAIL=no-reply@votre-domaine.cm
+```
+
+Ne placez jamais `SMS_API_KEY`, les numéros destinataires ou le texte complet
+des messages dans les logs. Chaque tentative est tracée en base dans
+`notifications`, avec son fournisseur, son coût et son statut.
+
+### Render
+
+Créez un **Background Worker** Render utilisant le même dépôt, environnement
+et `REDIS_URL` que le backend. Sa commande de démarrage est :
+
+```bash
+python manage.py rqworker default
+```
+
+Créez un second Background Worker pour le scheduler :
+
+```bash
+python manage.py planifier_echeances && python manage.py rqscheduler
+```
+
+Les deux services doivent recevoir les mêmes variables `POSTGRES_*`,
+`REDIS_URL`/`RQ_REDIS_URL`, `DJANGO_SETTINGS_MODULE=config.settings.prod` et
+les secrets SMS/e-mail nécessaires.
+
 ## Préparation de la production
 
 La configuration Compose actuelle est conçue pour le développement : elle

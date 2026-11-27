@@ -4,7 +4,7 @@ from datetime import timedelta
 from threading import Barrier
 
 import pytest
-from django.db import close_old_connections, connections
+from django.db import IntegrityError, close_old_connections, connections, transaction
 from django.utils import timezone
 from rest_framework_simplejwt.tokens import AccessToken
 
@@ -54,16 +54,19 @@ def corps(annonce_id, **complement):
     resultat = {
         "annonce_id": annonce_id,
         "mode_paiement": "cod",
-        "adresse_livraison": "Bonapriso, rue 1",
-        "ville_livraison": "Douala",
+        "mode_remise": "livraison_vendeur",
+        "ville": "Douala",
+        "quartier": "Bonapriso",
+        "repere": "Rue 1",
+        "telephone_contact": "+237670000502",
     }
     resultat.update(complement)
     return resultat
 
 
 @pytest.mark.django_db
-def test_commande_cod_valide_cree_toutes_les_entites(client, acteurs, annonce):
-    """Une commande COD confirme l'achat et crée paiement, livraison et QR unique."""
+def test_commande_cod_valide_reserve_lannonce_et_cree_toutes_les_entites(client, acteurs, annonce):
+    """Une commande COD réserve l'article jusqu'à son issue définitive."""
     response = client.post(
         "/v1/commandes",
         corps(annonce.id),
@@ -76,13 +79,20 @@ def test_commande_cod_valide_cree_toutes_les_entites(client, acteurs, annonce):
     assert response.status_code == 201
     assert commande.acheteur == acteurs[1]
     assert commande.vendeur == acteurs[0]
-    assert commande.statut == Commande.Statut.CONFIRMEE
+    assert commande.quantite == 1
+    assert commande.statut == Commande.Statut.ATTENTE_VENDEUR
     assert commande.montant_total == 10000
     assert commande.paiement.methode == Commande.ModePaiement.COD
     assert commande.paiement.statut == Paiement.Statut.EN_ATTENTE
     assert commande.livraison.statut == Livraison.Statut.PREPAREE
     assert commande.livraison.qr_code
-    assert annonce.statut == Annonce.Statut.VENDUE
+    assert annonce.statut == Annonce.Statut.RESERVEE
+    montants = response.json()
+    assert montants["montant_produit"] == 10000
+    assert montants["montant_reduction"] == 0
+    assert montants["code_promo"] is None
+    assert montants["frais_livraison"] == 0
+    assert montants["montant_total"] == 10000
 
 
 @pytest.mark.django_db
@@ -135,8 +145,8 @@ def test_commandes_concurrentes_ne_peuvent_vendre_une_annonce_qu_une_fois(
 
 
 @pytest.mark.django_db
-def test_commande_refuse_auto_achat_et_mobile_money(client, acteurs, annonce):
-    """Le vendeur ne peut pas s'acheter et Mobile Money est explicitement indisponible."""
+def test_commande_refuse_auto_achat_et_mobile_money_attend_le_paiement(client, acteurs, annonce):
+    """Le vendeur ne s'achète pas et MoMo démarre dans l'état de paiement."""
     auto_achat = client.post(
         "/v1/commandes", corps(annonce.id), content_type="application/json", **headers(acteurs[0])
     )
@@ -148,8 +158,8 @@ def test_commande_refuse_auto_achat_et_mobile_money(client, acteurs, annonce):
     )
 
     assert auto_achat.status_code == 422
-    assert mobile_money.status_code == 501
-    assert Commande.objects.count() == 0
+    assert mobile_money.status_code == 201
+    assert Commande.objects.get().statut == Commande.Statut.ATTENTE_PAIEMENT
 
 
 @pytest.mark.django_db
@@ -229,7 +239,7 @@ def test_code_promo_inexistant_et_long_est_ignore_sans_erreur_serveur(client, ac
     CodePromo.objects.create(
         code=code_long,
         type=CodePromo.Type.GLOBALE,
-        reduction_montant="500.00",
+        reduction_montant=500,
         date_debut=maintenant - timedelta(days=1),
         date_fin=maintenant + timedelta(days=1),
     )
@@ -241,6 +251,9 @@ def test_code_promo_inexistant_et_long_est_ignore_sans_erreur_serveur(client, ac
     commande = Commande.objects.get()
     assert valide.status_code == 201
     assert valide.json()["montant_total"] == 9500.0
+    assert commande.montant_produit == 10000
+    assert commande.montant_reduction == 500
+    assert commande.code_promo_id == CodePromo.objects.get(code=code_long).id
     assert commande.code_parrainage_utilise is None
 
     autre = Annonce.objects.create(
@@ -303,13 +316,71 @@ def test_code_promo_valide_expire_et_plafonne(client, acteurs, annonce):
 
 
 @pytest.mark.django_db
+def test_promotion_pourcentage_arrondie_au_fcfa_inferieur(client, acteurs, annonce):
+    """Une réduction en pourcentage ne crée jamais de centime FCFA."""
+    annonce.prix = "9999.00"
+    annonce.save(update_fields=["prix"])
+    maintenant = timezone.now()
+    promo = CodePromo.objects.create(
+        code="ARRONDI12", type=CodePromo.Type.GLOBALE, reduction_pct="12.50",
+        date_debut=maintenant - timedelta(days=1), date_fin=maintenant + timedelta(days=1),
+    )
+
+    response = client.post(
+        "/v1/commandes", corps(annonce.id, code_promo=promo.code),
+        content_type="application/json", **headers(acteurs[1]),
+    )
+    commande = Commande.objects.get()
+
+    assert response.status_code == 201
+    assert commande.montant_produit == 9999
+    assert commande.montant_reduction == 1249
+    assert commande.montant_total == 8750
+    assert commande.code_promo == promo
+
+
+@pytest.mark.django_db
+def test_promotion_montant_fixe_est_plafonnee_au_prix(client, acteurs, annonce):
+    """Un code ne peut ni produire un total négatif ni dépasser le prix brut."""
+    maintenant = timezone.now()
+    promo = CodePromo.objects.create(
+        code="PLAFOND", type=CodePromo.Type.GLOBALE, reduction_montant=20000,
+        date_debut=maintenant - timedelta(days=1), date_fin=maintenant + timedelta(days=1),
+    )
+
+    response = client.post(
+        "/v1/commandes", corps(annonce.id, code_promo=promo.code),
+        content_type="application/json", **headers(acteurs[1]),
+    )
+    commande = Commande.objects.get()
+
+    assert response.status_code == 201
+    assert commande.montant_reduction == commande.montant_produit == 10000
+    assert commande.montant_total == 0
+
+
+@pytest.mark.django_db
+def test_contrainte_total_traceable_refuse_un_montant_incoherent(acteurs, annonce):
+    """La base protège les montants même hors du service de création."""
+    with pytest.raises(IntegrityError), transaction.atomic():
+        Commande.objects.create(
+            acheteur=acteurs[1], vendeur=acteurs[0], annonce=annonce, quantite=1,
+            montant_produit=10000, montant_reduction=100, frais_livraison=0,
+            montant_total=10000, mode_paiement=Commande.ModePaiement.COD,
+            statut=Commande.Statut.ATTENTE_VENDEUR,
+            mode_remise=Commande.ModeRemise.MAIN_PROPRE, ville="Douala",
+            quartier="Akwa", repere="Place", telephone_contact="+237670000502",
+        )
+
+
+@pytest.mark.django_db
 def test_code_promo_expire_est_ignore_sans_bloquer(client, acteurs, annonce):
     """Un code expiré laisse l'achat aboutir mais informe le client."""
     maintenant = timezone.now()
     CodePromo.objects.create(
         code="EXPIRE",
         type=CodePromo.Type.GLOBALE,
-        reduction_montant="500.00",
+        reduction_montant=500,
         date_debut=maintenant - timedelta(days=2),
         date_fin=maintenant - timedelta(days=1),
     )
@@ -338,16 +409,16 @@ def test_code_promo_inactif_futur_ou_reserve_a_un_autre_vendeur_est_ignore(
     codes = (
         CodePromo.objects.create(
             code="INACTIF", type=CodePromo.Type.GLOBALE, est_actif=False,
-            reduction_montant="500.00", date_debut=maintenant - timedelta(days=1),
+            reduction_montant=500, date_debut=maintenant - timedelta(days=1),
             date_fin=maintenant + timedelta(days=1),
         ),
         CodePromo.objects.create(
-            code="FUTUR", type=CodePromo.Type.GLOBALE, reduction_montant="500.00",
+            code="FUTUR", type=CodePromo.Type.GLOBALE, reduction_montant=500,
             date_debut=maintenant + timedelta(days=1), date_fin=maintenant + timedelta(days=2),
         ),
         CodePromo.objects.create(
             code="BOUTIQUE", type=CodePromo.Type.BOUTIQUE, vendeur=autre_vendeur,
-            reduction_montant="500.00", date_debut=maintenant - timedelta(days=1),
+            reduction_montant=500, date_debut=maintenant - timedelta(days=1),
             date_fin=maintenant + timedelta(days=1),
         ),
     )
@@ -371,7 +442,7 @@ def test_code_promo_inactif_futur_ou_reserve_a_un_autre_vendeur_est_ignore(
 def test_echec_livraison_declenche_le_rollback(client, acteurs, annonce, monkeypatch):
     maintenant = timezone.now()
     promo = CodePromo.objects.create(
-        code="ROLLBACK", type=CodePromo.Type.GLOBALE, reduction_montant="500.00",
+        code="ROLLBACK", type=CodePromo.Type.GLOBALE, reduction_montant=500,
         date_debut=maintenant - timedelta(days=1), date_fin=maintenant + timedelta(days=1),
     )
     """Un échec en cours de transaction ne conserve aucune donnée partielle."""

@@ -76,6 +76,7 @@ components:
         email: { type: string, format: email, nullable: true }
         telephone: { type: string }
         role: { type: string, enum: [utilisateur, vendeur_pro, moderateur, livreur, administrateur] }
+        telephone_verifie: { type: boolean }
         photo_url: { type: string, nullable: true }
         note_moyenne: { type: number, format: float }
         nb_avis: { type: integer }
@@ -151,10 +152,23 @@ components:
 
     VerifyOtpRequest:
       type: object
-      required: [session_token, code]
+      required: [telephone, code]
       properties:
-        session_token: { type: string }
+        telephone: { type: string, example: "+237670000000" }
         code: { type: string, example: "482913" }
+
+    TelephoneRequest:
+      type: object
+      required: [telephone]
+      properties:
+        telephone: { type: string, example: "+237670000000" }
+
+    PasswordResetRequest:
+      type: object
+      required: [reset_token, password]
+      properties:
+        reset_token: { type: string }
+        password: { type: string, format: password, minLength: 8 }
 
     Annonce:
       type: object
@@ -324,26 +338,59 @@ components:
         acheteur_id: { type: integer }
         annonce_id: { type: integer }
         vendeur_id: { type: integer }
-        montant_total: { type: number }
+        montant_produit: { type: integer, description: Prix brut de l'annonce en FCFA. }
+        montant_reduction: { type: integer, description: Réduction appliquée en FCFA. }
+        code_promo: { type: string, nullable: true, description: Code promotionnel réellement appliqué. }
+        frais_livraison: { type: integer, description: Frais de livraison en FCFA. }
+        montant_total: { type: integer, description: montant_produit - montant_reduction + frais_livraison, en FCFA. }
         mode_paiement: { type: string, enum: [mobile_money, cod] }
         statut:
           type: string
-          enum: [attente_paiement, confirmee, payee, preparee, en_transit, livree, annulee, litige]
-        adresse_livraison: { type: string }
+          enum: [attente_paiement, attente_vendeur, acceptee, expediee, livree, echec_livraison, litige, terminee, annulee, remboursee]
+        mode_remise: { type: string, enum: [main_propre, livraison_vendeur] }
+        ville: { type: string }
+        quartier: { type: string }
+        repere: { type: string, maxLength: 200 }
+        latitude: { type: number, nullable: true }
+        longitude: { type: number, nullable: true }
+        telephone_contact: { type: string, example: "+237670000001" }
         created_at: { type: string, format: date-time }
+        historique:
+          type: array
+          items: { $ref: '#/components/schemas/HistoriqueStatutCommande' }
         message: { type: string, nullable: true, description: Message d'information, notamment pour un code promo ignoré. }
 
     CommandeCreateRequest:
       type: object
-      required: [annonce_id, mode_paiement, adresse_livraison, ville_livraison]
+      required: [annonce_id, mode_paiement, mode_remise, ville, quartier, repere, telephone_contact]
       properties:
         annonce_id: { type: integer }
-        quantite: { type: integer, minimum: 1, default: 1 }
         mode_paiement: { type: string, enum: [mobile_money, cod] }
         operateur: { type: string, enum: [mtn, orange], nullable: true }
-        adresse_livraison: { type: string }
-        ville_livraison: { type: string }
+        mode_remise: { type: string, enum: [main_propre, livraison_vendeur] }
+        ville: { type: string }
+        quartier: { type: string, description: Lieu de rendez-vous pour main_propre. }
+        repere: { type: string, maxLength: 200, description: Lieu de rendez-vous pour main_propre. }
+        latitude: { type: number, nullable: true }
+        longitude: { type: number, nullable: true }
+        telephone_contact: { type: string, example: "+237670000001" }
         code_promo: { type: string, maxLength: 30, nullable: true }
+
+    HistoriqueStatutCommande:
+      type: object
+      properties:
+        id: { type: integer }
+        ancien_statut: { type: string }
+        nouveau_statut: { type: string }
+        acteur_id: { type: integer, nullable: true }
+        motif: { type: string, nullable: true }
+        created_at: { type: string, format: date-time }
+
+    MotifCommandeRequest:
+      type: object
+      required: [motif]
+      properties:
+        motif: { type: string, maxLength: 500 }
 
     Avis:
       type: object
@@ -418,7 +465,7 @@ components:
         application/json:
           schema: { $ref: '#/components/schemas/Erreur' }
     Forbidden:
-      description: Rôle insuffisant pour cette action
+      description: Rôle insuffisant ou téléphone non vérifié (`PHONE_NOT_VERIFIED`).
       content:
         application/json:
           schema: { $ref: '#/components/schemas/Erreur' }
@@ -464,10 +511,16 @@ paths:
             schema: { $ref: '#/components/schemas/InscriptionRequest' }
       responses:
         '201':
-          description: Compte créé
+          description: Compte créé ; vérification OTP requise avant toute connexion.
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/Utilisateur' }
+              schema:
+                type: object
+                required: [otp_requis, telephone]
+                properties:
+                  otp_requis: { type: boolean, example: true }
+                  message: { type: string }
+                  telephone: { type: string }
         '422': { $ref: '#/components/responses/ValidationError' }
         '429': { $ref: '#/components/responses/RateLimited' }
 
@@ -501,7 +554,7 @@ paths:
   /v1/auth/verify-otp:
     post:
       tags: [Auth]
-      summary: Connexion (étape 2) — validation du code OTP, émission du JWT
+      summary: Vérifier le téléphone par code OTP
       security: []
       requestBody:
         required: true
@@ -510,12 +563,82 @@ paths:
             schema: { $ref: '#/components/schemas/VerifyOtpRequest' }
       responses:
         '200':
-          description: Authentification réussie
+          description: Téléphone vérifié ; le client peut maintenant se connecter.
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/LoginResponse' }
+              schema:
+                type: object
+                properties:
+                  telephone_verifie: { type: boolean }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '429': { $ref: '#/components/responses/RateLimited' }
+
+  /v1/auth/renvoyer-otp:
+    post:
+      tags: [Auth]
+      summary: Renvoyer le code de vérification
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TelephoneRequest' }
+      responses:
+        '200': { description: Réponse non révélatrice envoyée }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /v1/auth/mot-de-passe-oublie:
+    post:
+      tags: [Auth]
+      summary: Demander un code de réinitialisation
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TelephoneRequest' }
+      responses:
+        '200': { description: Réponse identique pour un numéro existant ou inconnu }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /v1/auth/mot-de-passe-oublie/verifier:
+    post:
+      tags: [Auth]
+      summary: Vérifier le code de réinitialisation
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/VerifyOtpRequest' }
+      responses:
+        '200':
+          description: Jeton à usage unique valable dix minutes.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties: { reset_token: { type: string } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /v1/auth/mot-de-passe-oublie/reinitialiser:
+    post:
+      tags: [Auth]
+      summary: Réinitialiser le mot de passe et révoquer les sessions
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PasswordResetRequest' }
+      responses:
+        '204': { description: Mot de passe réinitialisé }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/ValidationError' }
 
   /v1/auth/refresh:
     post:
@@ -684,6 +807,7 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Annonce' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '422': { $ref: '#/components/responses/ValidationError' }
         '429': { $ref: '#/components/responses/RateLimited' }
 
@@ -852,7 +976,8 @@ paths:
   /v1/panier:
     get:
       tags: [Panier & Commandes]
-      summary: Consulter mon panier
+      summary: "Hors MVP — Consulter mon panier (fonctionnalité gelée)"
+      deprecated: true
       responses:
         '200':
           description: Panier avec prix recalculés depuis les annonces actives
@@ -862,7 +987,8 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
     delete:
       tags: [Panier & Commandes]
-      summary: Vider mon panier
+      summary: "Hors MVP — Vider mon panier (fonctionnalité gelée)"
+      deprecated: true
       responses:
         '204': { description: Panier vidé }
         '401': { $ref: '#/components/responses/Unauthorized' }
@@ -870,7 +996,8 @@ paths:
   /v1/panier/articles:
     post:
       tags: [Panier & Commandes]
-      summary: Ajouter un article au panier
+      summary: "Hors MVP — Ajouter un article au panier (fonctionnalité gelée)"
+      deprecated: true
       requestBody:
         required: true
         content:
@@ -883,13 +1010,15 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Panier' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '422': { $ref: '#/components/responses/ValidationError' }
 
   /v1/panier/articles/{annonce_id}:
     patch:
       tags: [Panier & Commandes]
-      summary: Modifier la quantité d'un article
+      summary: "Hors MVP — Modifier un article au panier (fonctionnalité gelée)"
+      deprecated: true
       parameters:
         - { name: annonce_id, in: path, required: true, schema: { type: integer } }
       requestBody:
@@ -908,7 +1037,8 @@ paths:
         '422': { $ref: '#/components/responses/ValidationError' }
     delete:
       tags: [Panier & Commandes]
-      summary: Retirer un article du panier
+      summary: "Hors MVP — Retirer un article du panier (fonctionnalité gelée)"
+      deprecated: true
       parameters:
         - { name: annonce_id, in: path, required: true, schema: { type: integer } }
       responses:
@@ -940,7 +1070,7 @@ paths:
         '422': { $ref: '#/components/responses/ValidationError' }
     post:
       tags: [Panier & Commandes]
-      summary: Passer une commande (choix du mode de paiement)
+      summary: Passer une commande d'achat direct
       requestBody:
         required: true
         content:
@@ -953,14 +1083,10 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Commande' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
         '422': { $ref: '#/components/responses/ValidationError' }
-        '501':
-          description: Le paiement Mobile Money n'est pas encore disponible au MVP.
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/Erreur' }
 
   /v1/commandes/{id}:
     get:
@@ -974,6 +1100,38 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Commande' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /v1/commandes/{id}/accepter:
+    post:
+      tags: [Panier & Commandes]
+      summary: Accepter une commande (vendeur)
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        '200': { description: Commande acceptée }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /v1/commandes/{id}/refuser:
+    post:
+      tags: [Panier & Commandes]
+      summary: Refuser une commande (vendeur)
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/MotifCommandeRequest' }
+      responses:
+        '200': { description: Commande annulée et annonce remise en vente }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/ValidationError' }
 
   /v1/commandes/{id}/annuler:
     post:
@@ -982,7 +1140,34 @@ paths:
       parameters:
         - { name: id, in: path, required: true, schema: { type: integer } }
       responses:
-        '200': { description: Commande annulée }
+        '200': { description: Commande annulée et annonce remise en vente }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /v1/commandes/{id}/expedier:
+    post:
+      tags: [Panier & Commandes]
+      summary: Expédier une commande acceptée (vendeur)
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        '200': { description: Commande expédiée }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /v1/commandes/{id}/confirmer-reception:
+    post:
+      tags: [Panier & Commandes]
+      summary: Confirmer la réception d'une commande livrée (acheteur)
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        '200': { description: Commande terminée ; l'annonce devient vendue }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
 
   # -------------------------------------------------------------- PAIEMENTS
   /v1/paiements/mobile-money/initier:

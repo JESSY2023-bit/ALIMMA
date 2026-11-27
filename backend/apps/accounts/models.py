@@ -43,6 +43,10 @@ class UtilisateurManager(BaseUserManager):
         if extra_fields.get("email"):
             extra_fields["email"] = self.normalize_email(extra_fields["email"])
         extra_fields.setdefault("role", Utilisateur.Role.UTILISATEUR)
+        # Les appels directs au manager servent aux comptes opérateur, aux
+        # scripts et aux fixtures historiques : ils sont déjà vérifiés hors du
+        # parcours public. L'inscription API force explicitement False.
+        extra_fields.setdefault("telephone_verifie", True)
         extra_fields.setdefault("code_parrainage", self._new_referral_code())
         utilisateur = self.model(telephone=telephone, **extra_fields)
         utilisateur.set_password(password)
@@ -66,6 +70,12 @@ class Utilisateur(models.Model):
         LIVREUR = "livreur", "Livreur"
         ADMINISTRATEUR = "administrateur", "Administrateur"
 
+    class Langue(models.TextChoices):
+        """Langues actuellement disponibles pour les messages transactionnels."""
+
+        FRANCAIS = "fr", "Français"
+        ANGLAIS = "en", "English"
+
     nom = models.CharField(max_length=150)
     email = models.EmailField(max_length=255, unique=True, null=True, blank=True)
     telephone = models.CharField(max_length=20, unique=True)
@@ -75,6 +85,7 @@ class Utilisateur(models.Model):
         choices=Role.choices,
         default=Role.UTILISATEUR,
     )
+    langue = models.CharField(max_length=2, choices=Langue.choices, default=Langue.FRANCAIS)
     photo_url = models.TextField(null=True, blank=True)
     note_moyenne = models.DecimalField(
         max_digits=2, decimal_places=1, default=Decimal("0.0"),
@@ -95,6 +106,7 @@ class Utilisateur(models.Model):
         related_name="filleuls",
     )
     deux_fa_active = models.BooleanField(default=False)
+    telephone_verifie = models.BooleanField(default=False)
     est_actif = models.BooleanField(default=True)
     derniere_connexion = models.DateTimeField(null=True, blank=True)
     date_inscription = models.DateTimeField(default=timezone.now)
