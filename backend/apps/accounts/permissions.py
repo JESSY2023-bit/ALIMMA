@@ -1,5 +1,23 @@
 """Permissions explicites propres aux comptes."""
 from rest_framework.permissions import BasePermission
+from rest_framework.exceptions import PermissionDenied
+
+
+class TelephoneNonVerifie(PermissionDenied):
+    """Refus explicite des opérations nécessitant un numéro confirmé."""
+
+    default_code = "PHONE_NOT_VERIFIED"
+    default_detail = "Veuillez vérifier votre numéro de téléphone."
+
+
+class TelephoneVerifie(BasePermission):
+    """Exige une vérification OTP avant les actions commerciales sensibles."""
+
+    def has_permission(self, request, view):
+        """Renvoie le code d'erreur métier attendu au lieu d'un 403 générique."""
+        if getattr(request.user, "telephone_verifie", False):
+            return True
+        raise TelephoneNonVerifie()
 
 
 class EstAdministrateur(BasePermission):

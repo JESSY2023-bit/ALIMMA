@@ -11,3 +11,5 @@ Pillow==11.1.0
 django-storages[s3]==1.14.6
 sentry-sdk[django]==2.19.2
 python-json-logger==3.2.1
+django-rq==3.0.0
+rq-scheduler==0.14.0

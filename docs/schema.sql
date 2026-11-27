@@ -53,6 +53,9 @@ CREATE TYPE statut_signalement AS ENUM ('ouvert', 'en_cours', 'traite', 'rejete'
 
 CREATE TYPE type_promo AS ENUM ('globale', 'boutique');
 
+CREATE TYPE canal_notification AS ENUM ('sms', 'email');
+CREATE TYPE statut_notification AS ENUM ('en_attente', 'envoyee', 'echec');
+
 
 -- =====================================================================
 -- 2. UTILISATEURS ET RÔLES
@@ -65,6 +68,7 @@ CREATE TABLE utilisateurs (
     telephone           VARCHAR(20) UNIQUE NOT NULL,
     password_hash       VARCHAR(255) NOT NULL,
     role                role_utilisateur NOT NULL DEFAULT 'utilisateur',
+    langue              VARCHAR(2) NOT NULL DEFAULT 'fr' CHECK (langue IN ('fr', 'en')),
     photo_url           TEXT,
     note_moyenne        NUMERIC(2,1) DEFAULT 0.0 CHECK (note_moyenne BETWEEN 0 AND 5),
     nb_avis             INTEGER DEFAULT 0,
@@ -72,6 +76,7 @@ CREATE TABLE utilisateurs (
     code_parrainage     VARCHAR(12) UNIQUE NOT NULL,
     parraine_par_id     BIGINT REFERENCES utilisateurs(id),
     deux_fa_active      BOOLEAN DEFAULT FALSE,
+    telephone_verifie   BOOLEAN NOT NULL DEFAULT FALSE,
     est_actif           BOOLEAN DEFAULT TRUE,
     derniere_connexion  TIMESTAMPTZ,
     date_inscription    TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -80,6 +85,24 @@ CREATE TABLE utilisateurs (
 );
 CREATE INDEX idx_utilisateurs_role ON utilisateurs(role);
 CREATE INDEX idx_utilisateurs_telephone ON utilisateurs(telephone);
+
+-- Notifications transactionnelles envoyées de manière asynchrone par RQ.
+CREATE TABLE notifications (
+    id              BIGSERIAL PRIMARY KEY,
+    destinataire_id BIGINT NOT NULL REFERENCES utilisateurs(id),
+    canal           canal_notification NOT NULL,
+    gabarit         VARCHAR(100) NOT NULL,
+    contexte        JSONB NOT NULL DEFAULT '{}'::jsonb,
+    statut          statut_notification NOT NULL DEFAULT 'en_attente',
+    tentatives      SMALLINT NOT NULL DEFAULT 0,
+    cout_fcfa       INTEGER NOT NULL DEFAULT 0,
+    fournisseur     VARCHAR(100),
+    erreur          TEXT,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+    envoyee_at      TIMESTAMPTZ
+);
+CREATE INDEX idx_notif_statut_date ON notifications(statut, created_at);
+CREATE INDEX idx_notif_dest_date ON notifications(destinataire_id, created_at);
 
 -- Codes OTP pour la double authentification (2FA)
 CREATE TABLE otp_codes (
@@ -199,9 +222,11 @@ CREATE TABLE commandes (
     annonce_id          BIGINT NOT NULL REFERENCES annonces(id),
     vendeur_id          BIGINT NOT NULL REFERENCES utilisateurs(id),
     quantite            INTEGER NOT NULL DEFAULT 1,
-    montant_produit     NUMERIC(12,2) NOT NULL,
-    frais_livraison     NUMERIC(12,2) NOT NULL DEFAULT 0,
-    montant_total       NUMERIC(12,2) NOT NULL,
+    montant_produit     BIGINT NOT NULL,
+    montant_reduction   BIGINT NOT NULL DEFAULT 0,
+    frais_livraison     BIGINT NOT NULL DEFAULT 0,
+    montant_total       BIGINT NOT NULL,
+    code_promo_id       BIGINT,
     mode_paiement       mode_paiement NOT NULL,
     statut              statut_commande NOT NULL DEFAULT 'attente_paiement',
     mode_remise         mode_remise NOT NULL,
@@ -213,7 +238,11 @@ CREATE TABLE commandes (
     telephone_contact   VARCHAR(20) NOT NULL,
     code_parrainage_utilise VARCHAR(12),
     created_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at          TIMESTAMPTZ NOT NULL DEFAULT now()
+    updated_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
+    CONSTRAINT commandes_reduction_plafonnee
+        CHECK (montant_reduction <= montant_produit),
+    CONSTRAINT commandes_total_traceable
+        CHECK (montant_total = montant_produit - montant_reduction + frais_livraison)
 );
 CREATE INDEX idx_commandes_acheteur ON commandes(acheteur_id);
 CREATE INDEX idx_commandes_vendeur ON commandes(vendeur_id);
@@ -236,7 +265,7 @@ CREATE TABLE paiements (
     methode             mode_paiement NOT NULL,
     operateur           operateur_mobile_money,
     reference_transaction VARCHAR(100),
-    montant             NUMERIC(12,2) NOT NULL,
+    montant             BIGINT NOT NULL,
     statut              statut_paiement NOT NULL DEFAULT 'en_attente',
     paye_at             TIMESTAMPTZ,
     created_at          TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -384,7 +413,7 @@ CREATE TABLE codes_promo (
     type            type_promo NOT NULL,
     vendeur_id      BIGINT REFERENCES utilisateurs(id),   -- NULL si promo globale (admin)
     reduction_pct   NUMERIC(5,2),
-    reduction_montant NUMERIC(12,2),
+    reduction_montant BIGINT,
     date_debut      TIMESTAMPTZ NOT NULL,
     date_fin        TIMESTAMPTZ NOT NULL,
     usage_max       INTEGER,
@@ -392,6 +421,9 @@ CREATE TABLE codes_promo (
     est_actif       BOOLEAN DEFAULT TRUE
 );
 CREATE INDEX idx_codes_promo_vendeur ON codes_promo(vendeur_id);
+ALTER TABLE commandes
+    ADD CONSTRAINT commandes_code_promo_id_fk
+    FOREIGN KEY (code_promo_id) REFERENCES codes_promo(id) ON DELETE SET NULL;
 
 
 -- =====================================================================

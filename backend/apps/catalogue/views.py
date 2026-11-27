@@ -12,7 +12,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from apps.accounts.permissions import EstAdministrateur
+from apps.accounts.permissions import EstAdministrateur, TelephoneVerifie
 from apps.accounts.serializers import ErreurSerializer
 from config.network import ip_client
 
@@ -131,7 +131,7 @@ class AnnoncesView(APIView):
         """Rend la liste publique et réserve la publication aux comptes connectés."""
         if self.request.method == "GET":
             return [AllowAny()]
-        return [IsAuthenticated()]
+        return [IsAuthenticated(), TelephoneVerifie()]
 
     def get_throttles(self):
         """Applique le quota public à la liste et le quota vendeur à la création."""

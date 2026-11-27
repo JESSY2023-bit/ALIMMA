@@ -3,6 +3,7 @@ from django.db import transaction
 from rest_framework.exceptions import APIException
 
 from apps.catalogue.models import Annonce
+from apps.notifications.services import notifier
 
 from .models import Commande, HistoriqueStatutCommande
 
@@ -104,4 +105,9 @@ def transitionner(commande, cible, acteur, motif=None):
         elif cible == Commande.Statut.TERMINEE:
             commande.annonce.statut = Annonce.Statut.VENDUE
             commande.annonce.save(update_fields=["statut", "updated_at"])
+
+        contexte = {"commande_id": commande.id, "statut": cible}
+        for utilisateur in (commande.acheteur, commande.vendeur):
+            if acteur is None or utilisateur.id != acteur.id:
+                notifier(utilisateur, "commande_statut", contexte, canaux=("sms", "email"))
     return commande

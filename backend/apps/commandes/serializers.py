@@ -105,13 +105,15 @@ class CommandeSerializer(serializers.ModelSerializer):
     acheteur_id = serializers.IntegerField(read_only=True)
     annonce_id = serializers.IntegerField(read_only=True)
     vendeur_id = serializers.IntegerField(read_only=True)
-    montant_total = serializers.DecimalField(
-        max_digits=12, decimal_places=2, read_only=True, coerce_to_string=False
-    )
+    montant_produit = serializers.IntegerField(read_only=True)
+    montant_reduction = serializers.IntegerField(read_only=True)
+    frais_livraison = serializers.IntegerField(read_only=True)
+    montant_total = serializers.IntegerField(read_only=True)
+    code_promo = serializers.SlugRelatedField(read_only=True, slug_field="code")
     message = serializers.CharField(read_only=True, required=False)
     historique = serializers.SerializerMethodField()
 
-    def get_historique(self, commande):
+    def get_historique(self, commande) -> list[dict]:
         """Expose la trace d'état ordonnée dans le détail de commande."""
         historique = getattr(commande, "historique_statuts", None)
         elements = historique.all() if historique is not None else []
@@ -124,6 +126,10 @@ class CommandeSerializer(serializers.ModelSerializer):
             "acheteur_id",
             "annonce_id",
             "vendeur_id",
+            "montant_produit",
+            "montant_reduction",
+            "code_promo",
+            "frais_livraison",
             "montant_total",
             "mode_paiement",
             "statut",

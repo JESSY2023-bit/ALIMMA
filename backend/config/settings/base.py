@@ -22,6 +22,11 @@ def declarer_operations_publiques(result, generator, request, public):
         ("/v1/auth/inscription", "post"),
         ("/v1/auth/login", "post"),
         ("/v1/auth/refresh", "post"),
+        ("/v1/auth/verify-otp", "post"),
+        ("/v1/auth/renvoyer-otp", "post"),
+        ("/v1/auth/mot-de-passe-oublie", "post"),
+        ("/v1/auth/mot-de-passe-oublie/verifier", "post"),
+        ("/v1/auth/mot-de-passe-oublie/reinitialiser", "post"),
         ("/v1/admin/categories", "get"),
         ("/v1/annonces", "get"),
         ("/v1/annonces/carte", "get"),
@@ -56,11 +61,13 @@ INSTALLED_APPS = [
     "rest_framework",
     "rest_framework_simplejwt.token_blacklist",
     "drf_spectacular",
+    "django_rq",
     "apps.accounts",
     "apps.catalogue",
     "apps.commandes",
     "apps.moderation",
     "apps.administration",
+    "apps.notifications",
 ]
 
 # CORS doit rester avant CommonMiddleware pour traiter les requêtes du client
@@ -342,3 +349,35 @@ CACHES = {
         "LOCATION": os.environ.get("REDIS_URL", "redis://127.0.0.1:6379/1"),
     }
 }
+
+# RQ partage le Redis existant avec le cache, mais utilise une base distincte
+# afin qu'une purge de cache ne puisse jamais supprimer des tâches métier.
+RQ_ASYNC = os.environ.get("RQ_ASYNC", "true").strip().lower() == "true"
+RQ_REDIS_URL = os.environ.get(
+    "RQ_REDIS_URL", os.environ.get("REDIS_URL", "redis://127.0.0.1:6379/2")
+)
+RQ_QUEUES = {
+    "default": {
+        "URL": RQ_REDIS_URL,
+        "DEFAULT_TIMEOUT": 300,
+        "ASYNC": RQ_ASYNC,
+    }
+}
+
+# L'email est envoyé par le backend Django configuré par environnement. Le
+# backend console garde les développements locaux sans dépendance externe.
+EMAIL_BACKEND = os.environ.get(
+    "EMAIL_BACKEND", "django.core.mail.backends.console.EmailBackend"
+)
+EMAIL_HOST = os.environ.get("EMAIL_HOST", "")
+EMAIL_PORT = int(os.environ.get("EMAIL_PORT", "587"))
+EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER", "")
+EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD", "")
+EMAIL_USE_TLS = os.environ.get("EMAIL_USE_TLS", "true").lower() == "true"
+DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", "no-reply@alimma.cm")
+
+SMS_PROVIDER = os.environ.get("SMS_PROVIDER", "console").lower()
+SMS_API_URL = os.environ.get("SMS_API_URL", "")
+SMS_API_KEY = os.environ.get("SMS_API_KEY", "")
+SMS_SENDER = os.environ.get("SMS_SENDER", "ALIMMA")
+SMS_COST_FCFA = int(os.environ.get("SMS_COST_FCFA", "0"))

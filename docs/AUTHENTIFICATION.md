@@ -4,6 +4,18 @@ Cette API utilise une paire de jetons JWT : un access token de courte durée et
 un refresh token destiné à obtenir une nouvelle paire lorsque l'access token
 expire.
 
+## Vérification du téléphone
+
+L'inscription crée un compte sans JWT et renvoie `otp_requis=true`. Le frontend
+doit appeler `POST /v1/auth/verify-otp` avec `{telephone, code}`, puis inviter
+l'utilisateur à se connecter. Les codes sont valables cinq minutes et ne sont
+jamais stockés en clair.
+
+Les comptes existants avant cette migration sont marqués
+`telephone_verifie=true` afin de ne pas les bloquer rétroactivement. Les routes
+de publication d'annonce et de création de commande renvoient
+`403 PHONE_NOT_VERIFIED` tant que la vérification n'est pas terminée.
+
 ## Flux
 
 1. Créer un compte avec `POST /v1/auth/inscription`.

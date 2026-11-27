@@ -106,9 +106,17 @@ class Commande(models.Model):
         "accounts.Utilisateur", on_delete=models.DO_NOTHING, related_name="commandes_vendeur"
     )
     quantite = models.IntegerField(default=1)
-    montant_produit = models.DecimalField(max_digits=12, decimal_places=2)
-    frais_livraison = models.DecimalField(max_digits=12, decimal_places=2, default=0)
-    montant_total = models.DecimalField(max_digits=12, decimal_places=2)
+    montant_produit = models.PositiveBigIntegerField()
+    montant_reduction = models.PositiveBigIntegerField(default=0)
+    frais_livraison = models.PositiveBigIntegerField(default=0)
+    montant_total = models.PositiveBigIntegerField()
+    code_promo = models.ForeignKey(
+        "CodePromo",
+        on_delete=models.SET_NULL,
+        related_name="commandes",
+        null=True,
+        blank=True,
+    )
     mode_paiement = ModePaiementField(max_length=20, choices=ModePaiement.choices)
     statut = StatutCommandeField(
         max_length=20, choices=Statut.choices, default=Statut.ATTENTE_PAIEMENT
@@ -126,6 +134,22 @@ class Commande(models.Model):
 
     class Meta:
         db_table = "commandes"
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(montant_reduction__lte=models.F("montant_produit")),
+                name="commandes_reduction_plafonnee",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(
+                    montant_total=(
+                        models.F("montant_produit")
+                        - models.F("montant_reduction")
+                        + models.F("frais_livraison")
+                    )
+                ),
+                name="commandes_total_traceable",
+            ),
+        ]
         indexes = [
             models.Index(fields=["acheteur"], name="idx_commandes_acheteur"),
             models.Index(fields=["vendeur"], name="idx_commandes_vendeur"),
@@ -180,7 +204,7 @@ class Paiement(models.Model):
         max_length=10, choices=Operateur.choices, null=True, blank=True
     )
     reference_transaction = models.CharField(max_length=100, null=True, blank=True)
-    montant = models.DecimalField(max_digits=12, decimal_places=2)
+    montant = models.PositiveBigIntegerField()
     statut = StatutPaiementField(
         max_length=20, choices=Statut.choices, default=Statut.EN_ATTENTE
     )
@@ -245,9 +269,7 @@ class CodePromo(models.Model):
         blank=True,
     )
     reduction_pct = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
-    reduction_montant = models.DecimalField(
-        max_digits=12, decimal_places=2, null=True, blank=True
-    )
+    reduction_montant = models.PositiveBigIntegerField(null=True, blank=True)
     date_debut = models.DateTimeField()
     date_fin = models.DateTimeField()
     usage_max = models.IntegerField(null=True, blank=True)

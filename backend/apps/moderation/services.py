@@ -1,12 +1,17 @@
-"""Interfaces de services externes utilisés par la modération."""
+"""Interface de notification conservée pour la modération existante."""
+from apps.notifications.services import notifier
 
 
 class NotificationService:
-    """Point d'extension pour les notifications vendeur, sans transport au MVP."""
+    """Adapte l'ancien contrat de modération au domaine notifications."""
 
     @staticmethod
     def notifier_decision_annonce(*, vendeur, annonce, decision, motif):
-        """Expose le contrat d'envoi qui sera relié ultérieurement à un fournisseur."""
-        # Aucun envoi n'est réalisé pour le MVP. Cette interface permet de
-        # brancher SMS, email ou push sans modifier la logique de modération.
-        return None
+        """Programme une information du vendeur après une décision humaine."""
+        gabarit = "annonce_validee" if decision == "valider" else "annonce_rejetee"
+        return notifier(
+            vendeur,
+            gabarit,
+            {"titre": annonce.titre, "motif": motif or "-"},
+            canaux=("sms", "email"),
+        )

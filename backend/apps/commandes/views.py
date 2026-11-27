@@ -9,6 +9,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.accounts.serializers import ErreurSerializer
+from apps.accounts.permissions import TelephoneVerifie
 from apps.catalogue.models import Annonce
 
 from .serializers import (
@@ -144,6 +145,12 @@ class CommandesView(APIView):
 
     permission_classes = [IsAuthenticated]
 
+    def get_permissions(self):
+        """Réserve l'achat à un compte dont le téléphone est vérifié."""
+        if self.request.method == "POST":
+            return [IsAuthenticated(), TelephoneVerifie()]
+        return [IsAuthenticated()]
+
     @extend_schema(
         tags=["Panier & Commandes"],
         parameters=[
@@ -169,7 +176,7 @@ class CommandesView(APIView):
             raise ValidationError({"statut": "Statut de commande invalide."})
 
         commandes = Commande.objects.order_by("-created_at").select_related(
-            "annonce", "acheteur", "vendeur", "livraison"
+            "annonce", "acheteur", "vendeur", "livraison", "code_promo"
         ).prefetch_related(
             Prefetch(
                 "historique_statuts",
@@ -216,7 +223,7 @@ class CommandesView(APIView):
 def commande_visible_pour(utilisateur, commande_id):
     """Retourne une commande visible ou une 404 afin de ne pas révéler son existence."""
     queryset = Commande.objects.select_related(
-        "annonce", "acheteur", "vendeur", "livraison"
+        "annonce", "acheteur", "vendeur", "livraison", "code_promo"
     ).prefetch_related(
         Prefetch(
             "historique_statuts",
